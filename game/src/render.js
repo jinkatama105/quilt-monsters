@@ -6,11 +6,11 @@
 // those poses. The black pixels are keyed to transparency at threshold 24. The game
 // runs at full fidelity without the folder or the flag — nothing is fetched unless
 // the flag is on, so no 404 noise in a normal run.
-import { VIEW_W, VIEW_H, TILE, PALETTE, ELEMENT_COLORS } from './config.js';
-import { MAPS, NPCS, PLAYER_SHEET, image, drawSheet } from './world.js';
-import { drawRanger, drawCreature, drawSparkle } from './art.js';
-import { SPECIES } from './data.js';
-import { battleBg, drawBattleBg } from './bg.js';
+import { VIEW_W, VIEW_H, TILE, PALETTE, ELEMENT_COLORS } from './config.js?v=4';
+import { MAPS, NPCS, PLAYER_SHEET, image, drawSheet } from './world.js?v=4';
+import { drawRanger, drawCreature, drawSparkle } from './art.js?v=4';
+import { SPECIES } from './data.js?v=4';
+import { battleBg, drawBattleBg } from './bg.js?v=4';
 
 // ------------------------------------------------------------ chroma-key PNG loader
 const pngCache = new Map();        // "species:pose" -> keyed canvas | false (tried & missing)
