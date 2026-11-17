@@ -3,7 +3,7 @@
 import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js';
 import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js';
 import { drawCreature, drawSeedstoneIcon } from './art.js';
-import { panel, roundRect, drawHudButton, hpBar } from './hud.js';
+import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js';
 
 function centerText(ctx, text, x, y, font, color) {
   ctx.font = font; ctx.fillStyle = color; ctx.textAlign = 'center';
@@ -45,14 +45,14 @@ export function drawTitle(ctx, t) {
   drawCreature(ctx, 'emberling', 1030, 470, t + 1.4, 'idle');
   drawCreature(ctx, 'nocturne', 640, 640, t + 2.2, 'idle');
 
-  // title plate — translucent parchment wash with a hand-drawn double line
-  ctx.save();
-  roundRect(ctx, VIEW_W / 2 - 400, 90, 800, 170, 18);
-  ctx.fillStyle = 'rgba(18,28,20,0.55)'; ctx.fill();
-  ctx.strokeStyle = 'rgba(159,213,168,0.85)'; ctx.lineWidth = 3; ctx.stroke();
-  ctx.strokeStyle = 'rgba(235,241,221,0.28)'; ctx.lineWidth = 1;
-  roundRect(ctx, VIEW_W / 2 - 392, 98, 784, 154, 14); ctx.stroke();
-  ctx.restore();
+  // title plate — Muse watercolor frame (falls back to procedural double line)
+  if (!drawSlice(ctx, 'title_frame', VIEW_W / 2 - 400, 90, 800, 170, 32, 0.95)) {
+    ctx.save();
+    roundRect(ctx, VIEW_W / 2 - 400, 90, 800, 170, 18);
+    ctx.fillStyle = 'rgba(18,28,20,0.55)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(159,213,168,0.85)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+  }
   centerText(ctx, 'VERDANT STRUGGLE', VIEW_W / 2, 168, 'bold 58px monospace', PALETTE.paper);
   centerText(ctx, 'explore · battle · capture the three Tribus', VIEW_W / 2, 212, '18px monospace', '#9fd5a8');
 

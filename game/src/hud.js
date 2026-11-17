@@ -7,6 +7,7 @@ import { MISSIONS } from './data.js';
 import { drawSeedstoneIcon, drawPotionIcon } from './art.js';
 
 export function panel(ctx, x, y, w, h, alpha = 0.92) {
+  if (drawSlice(ctx, 'hud_panel', x, y, w, h, 24, alpha)) return;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = PALETTE.panel;
@@ -15,6 +16,52 @@ export function panel(ctx, x, y, w, h, alpha = 0.92) {
   roundRect(ctx, x, y, w, h, 14); ctx.stroke();
   ctx.globalAlpha = 1;
   ctx.restore();
+}
+
+// Muse watercolor UI assets, lazy-loaded; false = missing -> procedural fallback.
+// shortcut: if a panel ever needs its own art, upgrade from generic hud_panel.
+const uiCache = new Map();
+function uiImg(name) {
+  if (!uiCache.has(name)) {
+    const img = new Image();
+    img.onerror = () => uiCache.set(name, false);
+    img.onload = () => uiCache.set(name, img);
+    img.src = `assets/ui/${name}.png`;
+    uiCache.set(name, null); // loading
+  }
+  return uiCache.get(name);
+}
+/** 9-slice draw of a UI asset; edge bands scale with target height (slim bars OK). */
+export function drawSlice(ctx, name, x, y, w, h, m, alpha = 1) {
+  const img = uiImg(name);
+  if (!img) return img === false ? false : true; // loading: caller keeps procedural this frame
+  const e = Math.min(m * (h / img.height), w / 2, h / 2); // shortcut: w<2e overlaps edges; our panels never that small
+  ctx.save(); ctx.globalAlpha = alpha;
+  const sxC = [0, m, img.width - m], widC = [m, img.width - 2 * m, m], dxC = [x, x + e, x + w - e], dwC = [e, Math.max(0, w - 2 * e), e];
+  const syR = [0, m, img.height - m], widR = [m, img.height - 2 * m, m], dyR2 = [y, y + e, y + h - e], dhR = [e, Math.max(0, h - 2 * e), e];
+  for (let c = 0; c < 3; c++)
+    for (let r = 0; r < 3; r++)
+      if (dwC[c] > 0 && dhR[r] > 0) ctx.drawImage(img, sxC[c], syR[r], widC[c], widR[r], dxC[c], dyR2[r], dwC[c], dhR[r]);
+  ctx.restore();
+  return true;
+}
+
+// buttons.png = 2 pills side by side, 192x64: normal, hover/glow.
+function drawButtonArt(ctx, x, y, w, h, hot) {
+  const img = uiImg('buttons');
+  if (!img) return false;
+  ctx.drawImage(img, hot ? 192 : 0, 0, 192, 64, x, y, w, h);
+  return true;
+}
+
+// hp_bar.png = 4 horizontal 96px segments: empty track, green, yellow, red fills.
+function hpBarArt(ctx, x, y, w, h, frac) {
+  const img = uiImg('hp_bar');
+  if (!img) return false;
+  const seg = frac <= 0.25 ? 3 : frac <= 0.5 ? 2 : 1;
+  ctx.drawImage(img, 0, 0, 96, 64, x, y, w, h);
+  if (frac > 0.001) ctx.drawImage(img, seg * 96, 0, 96, 64, x, y, Math.max(h, w * frac), h);
+  return true;
 }
 
 export function roundRect(ctx, x, y, w, h, r) {
@@ -30,6 +77,7 @@ export function roundRect(ctx, x, y, w, h, r) {
 function hpColor(frac) { return frac > 0.5 ? PALETTE.hpGood : frac > 0.22 ? PALETTE.hpMid : PALETTE.hpBad; }
 
 export function hpBar(ctx, x, y, w, h, frac) {
+  if (hpBarArt(ctx, x, y, w, h, frac)) return;
   ctx.fillStyle = '#0a0f0a'; roundRect(ctx, x, y, w, h, h / 2); ctx.fill();
   ctx.strokeStyle = '#31493a'; ctx.lineWidth = 2; roundRect(ctx, x, y, w, h, h / 2); ctx.stroke();
   if (frac > 0.001) {
@@ -104,10 +152,14 @@ export function drawFieldHud(ctx, state, t) {
 export function drawHudButton(ctx, x, y, w, h, label, hot = false) {
   ctx.save();
   ctx.globalAlpha = hot ? 1 : 0.88;
-  ctx.fillStyle = hot ? '#2a4f38' : PALETTE.panel;
-  roundRect(ctx, x, y, w, h, 10); ctx.fill();
-  ctx.strokeStyle = hot ? ELEMENT_COLORS.Verdant.main : PALETTE.panelEdge; ctx.lineWidth = 2.5;
-  roundRect(ctx, x, y, w, h, 10); ctx.stroke();
+  if (drawButtonArt(ctx, x, y, w, h, hot)) {
+    // sprite drawn; skip procedural fill below
+  } else {
+    ctx.fillStyle = hot ? '#2a4f38' : PALETTE.panel;
+    roundRect(ctx, x, y, w, h, 10); ctx.fill();
+    ctx.strokeStyle = hot ? ELEMENT_COLORS.Verdant.main : PALETTE.panelEdge; ctx.lineWidth = 2.5;
+    roundRect(ctx, x, y, w, h, 10); ctx.stroke();
+  }
   ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label, x + w / 2, y + h / 2 + 5);
   ctx.restore();
