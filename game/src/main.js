@@ -1,13 +1,14 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js';
 import { SPECIES, MISSIONS } from './data.js';
 import { Input } from './input.js';
 import { World } from './world.js';
 import { TeamManager, makeCreature } from './team.js';
 import { startBattle } from './battle.js';
 import { drawField, drawBattle, Particles, battleAnchors } from './render.js';
-import { drawFieldHud } from './hud.js';
+import { drawFieldHud, panel } from './hud.js';
+import { PALETTE } from './config.js';
 import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js';
 import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js';
 import { saveGame, loadGame, canSave } from './save.js';
@@ -168,36 +169,39 @@ function updateField(dt) {
   if (input.inRect(VIEW_W - 274, VIEW_H - 66, 114, 44)) {
     state.muted = !state.muted; setMuted(state.muted); playSfx('menu'); return;
   }
+  // dialog open: Enter/click advances or closes
+  if (state.dialog) {
+    if (input.hit('enter') || input.hit(' ') || input.mouse.clicked) {
+      playSfx('menu');
+      if (state.dialog.npc.shop && state.dialog.line === state.dialog.npc.lines.length - 1) {
+        if (state.team.seedstones >= 2) { state.team.seedstones -= 2; state.team.potions += 1; state.world.setNotice('Purchased a Mossdra Potion.'); }
+        else state.world.setNotice('Not enough Seedstones.');
+      }
+      state.dialog.line += 1;
+      if (state.dialog.line >= state.dialog.npc.lines.length) state.dialog = null;
+    }
+    return;
+  }
+  if (input.hit('enter') || input.hit(' ')) {
+    const evt = state.world.interact();
+    if (evt && evt.kind === 'talk') { playSfx('menu'); state.dialog = { npc: evt.npc, line: 0 }; return; }
+  }
   const mv = input.moveVector();
   if (mv) {
-    const res = state.world.onStepResult(mv);
+    const res = state.world.tryMove(mv.dx, mv.dy);
     if (res) handleFieldEvent(res);
   }
-  if (input.mouse.clicked) {
+  if (input.mouse.clicked && !state.dialog) {
     const cam = fieldCamera();
     const evt = state.world.clickAt(input.mouse.x + cam.x, input.mouse.y + cam.y, state.team);
     if (evt) playSfx('pickup');
   }
 }
 
-// World.tryMove returns step events now; wire it here.
-World.prototype.onStepResult = function (mv) {
-  if (this.moving > 0) return null;
-  const nx = this.px + mv.dx, ny = this.py + mv.dy;
-  const target = this.tileAt(nx, ny);
-  if (target === 6 /* EXIT_E */) { this.changeZone(1); playSfx('menu'); return null; }
-  if (target === 7 /* EXIT_W */) { this.changeZone(-1); playSfx('menu'); return null; }
-  if (this.blocked(nx, ny)) return null;
-  this.px = nx; this.py = ny;
-  this.moving = 0.13;
-  playSfx('step');
-  return this.onStep(target);
-};
-
 function fieldCamera() {
-  const TILE = 40, VIEW_W2 = 1280, VIEW_H2 = 800, MAPW = 40, MAPH = 26;
-  const camX = Math.max(0, Math.min(MAPW * TILE - VIEW_W2, state.world.px * TILE + TILE / 2 - VIEW_W2 / 2));
-  const camY = Math.max(0, Math.min(MAPH * TILE - VIEW_H2, state.world.py * TILE + TILE / 2 - VIEW_H2 / 2));
+  const { w, h } = state.world.dims();
+  const camX = Math.max(0, Math.min(w * TILE - VIEW_W, state.world.px * TILE + TILE / 2 - VIEW_W / 2));
+  const camY = Math.max(0, Math.min(h * TILE - VIEW_H, state.world.py * TILE + TILE / 2 - VIEW_H / 2));
   return { x: camX, y: camY };
 }
 
@@ -207,6 +211,10 @@ function handleFieldEvent(res) {
     startEncounterBattle(makeCreature(res.speciesId, res.level), 'wild');
   } else if (res.kind === 'boss') {
     startEncounterBattle(makeCreature(res.mission.key, 14), 'boss', res.mission);
+  } else if (res.kind === 'heal') {
+    state.team.healPartyFull();
+    playSfx('heal');
+    state.world.setNotice('The spring water mends your party.');
   }
 }
 
@@ -360,6 +368,18 @@ function draw() {
     case 'field':
       drawField(ctx, state.world, state.t);
       drawFieldHud(ctx, state, state.t);
+      if (state.dialog) {
+        const d = state.dialog;
+        const line = d.npc.lines[Math.min(d.line, d.npc.lines.length - 1)];
+        panel(ctx, 120, VIEW_H - 150, VIEW_W - 240, 108);
+        ctx.fillStyle = '#e8d5a9'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'left';
+        ctx.fillText(d.npc.name.toUpperCase(), 146, VIEW_H - 118);
+        ctx.fillStyle = PALETTE.paper; ctx.font = '17px monospace';
+        ctx.fillText(line, 146, VIEW_H - 84);
+        ctx.fillStyle = '#9fb8a6'; ctx.font = '13px monospace'; ctx.textAlign = 'right';
+        ctx.fillText('[Enter] ' + (d.line + 1 >= d.npc.lines.length ? 'close' : 'next'), VIEW_W - 146, VIEW_H - 56);
+        ctx.textAlign = 'left';
+      }
       particles.draw(ctx);
       break;
     case 'battle':

@@ -50,8 +50,8 @@ export function drawFieldHud(ctx, state, t) {
   // top-left: zone + timer
   panel(ctx, 14, 12, 330, 78);
   ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 21px monospace'; ctx.textAlign = 'left';
-  const zoneNames = { moss: 'Moss Meadow', cliff: 'Cinder Bluff', temple: 'Gloom Shrine' };
-  ctx.fillText(zoneNames[world.zoneId], 30, 40);
+  const zoneNames = { town: 'Leafpine Village', route: 'Old Root Road', forest: 'Deepfern Hollow', cave: 'Glimmerdeep Cave' };
+  ctx.fillText(zoneNames[world.zoneId] || 'Moss Meadow', 30, 40);
   ctx.font = '14px monospace'; ctx.fillStyle = '#9fb8a6';
   const mins = Math.floor(state.stats.time / 60), secs = Math.floor(state.stats.time % 60);
   ctx.fillText(`steps ${world.steps} · ${mins}:${String(secs).padStart(2, '0')} · encounters ${state.stats.encounters}`, 30, 66);

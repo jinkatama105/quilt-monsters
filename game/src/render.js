@@ -7,8 +7,8 @@
 // runs at full fidelity without the folder or the flag — nothing is fetched unless
 // the flag is on, so no 404 noise in a normal run.
 import { VIEW_W, VIEW_H, TILE, PALETTE, ELEMENT_COLORS } from './config.js';
-import { MAP_W, MAP_H, T } from './world.js';
-import { drawTile, drawRanger, drawCreature, drawSparkle } from './art.js';
+import { MAPS, NPCS, PLAYER_SHEET, image, drawSheet } from './world.js';
+import { drawRanger, drawCreature, drawSparkle } from './art.js';
 import { SPECIES } from './data.js';
 import { battleBg, drawBattleBg } from './bg.js';
 
@@ -63,6 +63,34 @@ function drawPngCreature(ctx, speciesId, pose, cxp, cyp, scale = 1) {
   return true;
 }
 
+// Ghibli RGBA portraits (assets/world/ghibli-<species>-512.png). No chroma key —
+// these ship with real alpha. Falls back to procedural when a file is missing.
+const monsterCache = new Map();
+// assets that actually ship (makefun roster loop adds the rest later); prevents 404 noise
+const GHIBLI_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite']); // tidrel & gloomcap: no art yet (Muse) -> procedural fallback
+function drawGhibliCreature(ctx, speciesId, cxp, cyp, pose, isPlayer) {
+  if (!GHIBLI_ART.has(speciesId)) return false;
+  let img = monsterCache.get(speciesId);
+  if (img === undefined) {
+    img = new Image();
+    img.onerror = () => monsterCache.set(speciesId, false);
+    img.onload = () => monsterCache.set(speciesId, img);
+    img.src = `assets/world/ghibli-${speciesId}-512.png`;
+    monsterCache.set(speciesId, img);
+  }
+  if (!img || img === false || !img.naturalWidth) return false;
+  const size = 200;
+  ctx.save();
+  ctx.translate(cxp, cyp);
+  if (pose === 'attack') ctx.translate(isPlayer ? 14 : -14, 0);
+  if (pose === 'defeat') { ctx.globalAlpha = 0.5; ctx.translate(0, 24); }
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath(); ctx.ellipse(0, size * 0.42, size * 0.42, 16, 0, 0, 7); ctx.fill();
+  ctx.drawImage(img, -size / 2, -size / 2, size, size);
+  ctx.restore();
+  return true;
+}
+
 export class Particles {
   constructor() { this.list = []; }
   spawn(x, y, color, n = 12, speed = 160) {
@@ -89,26 +117,39 @@ export class Particles {
 }
 
 // ---------------------------------------------------------------- field scene
+// drawField: authored PNG map under a camera, NPCs + player as walk sheets.
 export function drawField(ctx, world, t) {
-  const camX = Math.max(0, Math.min(MAP_W * TILE - VIEW_W, world.px * TILE + TILE / 2 - VIEW_W / 2));
-  const camY = Math.max(0, Math.min(MAP_H * TILE - VIEW_H, world.py * TILE + TILE / 2 - VIEW_H / 2));
+  const { w: MW, h: MH } = world.dims();
+  const camX = Math.max(0, Math.min(MW * TILE - VIEW_W, world.px * TILE + TILE / 2 - VIEW_W / 2));
+  const camY = Math.max(0, Math.min(MH * TILE - VIEW_H, world.py * TILE + TILE / 2 - VIEW_H / 2));
   ctx.save();
   ctx.translate(-Math.round(camX), -Math.round(camY));
-  const x0 = Math.floor(camX / TILE), y0 = Math.floor(camY / TILE);
-  const x1 = Math.min(MAP_W - 1, x0 + Math.ceil(VIEW_W / TILE) + 1);
-  const y1 = Math.min(MAP_H - 1, y0 + Math.ceil(VIEW_H / TILE) + 1);
-  const grid = world.zone().grid;
-  for (let y = y0; y <= y1; y++)
-    for (let x = x0; x <= x1; x++)
-      drawTile(ctx, grid[y][x], x * TILE, y * TILE, world.zoneId, x, y, t);
+  const map = image(MAPS[world.zoneId].map);
+  if (map && map.naturalWidth) ctx.drawImage(map, 0, 0, MW * TILE, MH * TILE);
+  else { ctx.fillStyle = '#20351f'; ctx.fillRect(camX, camY, VIEW_W, VIEW_H); }  // shortcut: map still loading
   // hidden sparkle items
   for (const it of world.items) {
     const bob = Math.sin(t * 3 + it.bob) * 4;
     drawSparkle(ctx, it.x * TILE + TILE / 2, it.y * TILE + 12 + bob, t + it.bob);
   }
+  // NPCs: static facing-down frame with a soft idle bob
+  for (const n of (NPCS[world.zoneId] || [])) {
+    const cx = n.x * TILE + TILE / 2, gy = n.y * TILE + TILE - 2;
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    ctx.beginPath(); ctx.ellipse(cx, gy, 14, 5, 0, 0, 7); ctx.fill();
+    if (!drawSheet(ctx, n.sheet, 0, 1 + (Math.floor(t * 2 + n.x) % 2), cx, gy, TILE * 1.7)) {
+      drawRanger(ctx, cx, gy - TILE * 0.8, 0, false, t + n.x);   // procedural fallback
+    }
+  }
   // ranger
   const walking = world.moving > 0.02;
-  drawRanger(ctx, world.px * TILE + TILE / 2, world.py * TILE + TILE / 2 - 6, 1, walking, t);
+  const frame = walking ? (1 + Math.floor(world.animT * 8) % 2) : 1;
+  const cx = world.px * TILE + TILE / 2, gy = world.py * TILE + TILE - 2;
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(cx, gy, 15, 6, 0, 0, 7); ctx.fill();
+  if (!drawSheet(ctx, PLAYER_SHEET, world.dir, frame, cx, gy, TILE * 1.9)) {
+    drawRanger(ctx, cx, gy - TILE * 0.8, world.dir, walking, t);
+  }
   ctx.restore();
   // vignette keeps the scene readable under HUD panels
   const vg = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.42, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.85);
@@ -167,6 +208,7 @@ export function drawBattle(ctx, battle, t, particles) {
     const pose = poseOf(who);
     // optional chroma-keyed PNG art overrides procedural for idle/attack/defeat poses
     if (pose === 'idle' || pose === 'attack' || pose === 'defeat') {
+      if (drawGhibliCreature(ctx, sp, a.x, a.y, pose, who === 'player')) return;
       if (drawPngCreature(ctx, sp, pose, a.x, a.y)) return;
     }
     drawCreature(ctx, sp, a.x, a.y, t, pose);

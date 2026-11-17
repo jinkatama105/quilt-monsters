@@ -99,6 +99,13 @@ export class TeamManager {
     }
   }
 
+  healPartyFull() {
+    for (const c of this.party) {
+      c.hp = c.stats.hp;
+      for (const m of c.moves) m.pp = MOVES[m.key].pp;
+    }
+  }
+
   allFainted() { return this.party.every((c) => c.hp <= 0); }
 
   firstAlive() { return this.party.find((c) => c.hp > 0) || null; }

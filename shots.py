@@ -22,6 +22,11 @@ SHOTS = [
     ("02-battle.jpg", "?debug=battle", None),
     ("03-codex.jpg", "?debug=codex", None),
     ("04-victory.jpg", "?debug=win", None),
+    ("05-town.jpg", "?debug=field", "town"),
+    ("06-route.jpg", None, "route"),
+    ("07-forest.jpg", None, "forest"),
+    ("08-cave.jpg", None, "cave"),
+    ("09-ghibli-boss.jpg", None, "boss"),
 ]
 
 errors = []
@@ -31,9 +36,20 @@ try:
         page = browser.new_page(viewport={"width": 1280, "height": 800})
         page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         page.on("pageerror", lambda e: errors.append(str(e)))
-        for name, query, _ in SHOTS:
-            page.goto(BASE + query)
-            page.wait_for_timeout(1400)
+        for name, query, special in SHOTS:
+            if special is None:
+                page.goto(BASE + query)
+                page.wait_for_timeout(1400)
+            elif special == "boss":
+                page.goto(BASE + "?debug=field")
+                page.wait_for_timeout(600)
+                page.evaluate("__vsHooks.startEncounterBattle(__vsHooks.makeCreature('gelundra', 14), 'boss', {key:'gelundra', name:'Gelundra'})")
+                page.wait_for_timeout(1600)
+            else:
+                page.goto(BASE + "?debug=field")
+                page.wait_for_timeout(600)
+                page.evaluate("(z) => { __vs.world.warpTo({zone:z, px:7, py:10}); }", special)
+                page.wait_for_timeout(1600)
             path = os.path.join(OUT, name)
             page.screenshot(path=path, type="jpeg", quality=88)
             size = os.path.getsize(path)

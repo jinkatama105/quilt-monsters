@@ -3,13 +3,15 @@
 // keeps its procedural gradient. Loading is lazy + cached, non-blocking.
 const cache = {};
 
+const BG_BY_ZONE = { town: 'moss', route: 'moss', forest: 'moss', cave: 'cliff' }; // assets/battle/<id>.png (Ghibli 512)
 export function battleBg(zoneId) {
-  if (cache[zoneId] !== undefined) return cache[zoneId].img;
+  const id = BG_BY_ZONE[zoneId] || zoneId;
+  if (cache[id] !== undefined) return cache[id].img;
   const img = new Image();
-  img.onload = () => { cache[zoneId] = { img, ok: true }; };
-  img.onerror = () => { cache[zoneId] = { img, ok: false }; };
-  img.src = `assets/battle/${zoneId}.png`;
-  cache[zoneId] = { img, ok: false };
+  img.onload = () => { cache[id] = { img, ok: true }; };
+  img.onerror = () => { cache[id] = { img, ok: false }; };
+  img.src = `assets/battle/${id}.png`;
+  cache[id] = { img, ok: false };
   return null;
 }
 

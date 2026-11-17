@@ -1,114 +1,178 @@
-// world.js — the top-down exploration field: three zones, tile maps, walking,
-// random encounters in tall grass, hidden clickable items and the mission markers.
-import { TILE, ENCOUNTER_CHANCE, HIDDEN_ITEM_CHANCE, T } from './config.js';
-import { WILD_TABLES, SPECIES, MISSIONS } from './data.js';
+// world.js — the top-down exploration field built from the authored Ghibli maps:
+// pre-rendered map PNGs + collision grids (mapdata.js) + warp seams from the
+// world manifest. Zones: town, route, forest, cave, interior. Tall zones keep
+// random encounters, invisible boss markers keep the three Tribus missions,
+// NPCs block their tile and answer Enter.
+import { TILE, ENCOUNTER_CHANCE, HIDDEN_ITEM_CHANCE } from './config.js';
+import { WILD_TABLES, MISSIONS } from './data.js';
+import { GRIDS } from './mapdata.js';
 import { mulberry32, pickWeighted, roll, rint } from './random.js';
 
-export { T };
-const BLOCKING = new Set([T.ROCK, T.WATER, T.PILLAR]);
+export { T } from './config.js';
 
-export const MAP_W = 40;
-export const MAP_H = 26;
+const ZDEF = {
+  town:     { map: 'town_map_480x320.png',      encounter: false, name: 'Verdant Town' },
+  route:    { map: 'route1_map_640x240.png',    encounter: true,  wild: 'moss',  name: 'Route 1' },
+  forest:   { map: 'forest_map_480x480.png',    encounter: true,  wild: 'moss',  name: 'Whisper Forest' },
+  cave:     { map: 'cave_map_400x400.png',      encounter: true,  wild: 'cliff', name: 'Cinder Cave' },
+  interior: { map: 'house_interior_256x192.png', encounter: false, name: 'Home' },
+};
+export const MAPS = ZDEF;   // render.js reads .map per zone
 
-// ---------------------------------------------------------------- map generation
-// Deterministic per zone: same seed always yields the same meadow, bluff and shrine.
-function generateZone(id) {
-  const rng = mulberry32({ moss: 1337, cliff: 4242, temple: 9090 }[id]);
-  const grid = [];
-  for (let y = 0; y < MAP_H; y++) {
-    const row = [];
-    for (let x = 0; x < MAP_W; x++) {
-      const border = x === 0 || y === 0 || x === MAP_W - 1 || y === MAP_H - 1;
-      row.push(border ? T.ROCK : T.GROUND);
-    }
-    grid.push(row);
-  }
-  const blob = (cx, cy, r, tile) => {
-    for (let y = cy - r; y <= cy + r; y++)
-      for (let x = cx - r; x <= cx + r; x++) {
-        if (x <= 0 || y <= 0 || x >= MAP_W - 1 || y >= MAP_H - 1) continue;
-        const d = Math.hypot(x - cx, y - cy);
-        if (d <= r * (0.6 + rng() * 0.5)) grid[y][x] = tile;
-      }
-  };
-  const grassPatches = id === 'moss' ? 14 : id === 'cliff' ? 7 : 9;
-  for (let i = 0; i < grassPatches; i++) blob(rint(3, MAP_W - 4, rng), rint(3, MAP_H - 4, rng), rint(2, 4, rng), T.GRASS);
-  const rockPatches = id === 'cliff' ? 12 : id === 'temple' ? 6 : 4;
-  for (let i = 0; i < rockPatches; i++) blob(rint(2, MAP_W - 3, rng), rint(2, MAP_H - 3, rng), rint(1, 3, rng), T.ROCK);
-  if (id === 'moss') { blob(10, 8, 3, T.WATER); blob(28, 17, 2, T.WATER); }
-  if (id === 'temple') for (let i = 0; i < 8; i++) grid[6 + (i % 4) * 5][8 + Math.floor(i / 4) * 20] = T.PILLAR;
-  for (let i = 0; i < (id === 'moss' ? 26 : 12); i++) {
-    const x = rint(1, MAP_W - 2, rng), y = rint(1, MAP_H - 2, rng);
-    if (grid[y][x] === T.GROUND) grid[y][x] = T.FLOWER;
-  }
-  // walking path across the middle, and the zone exits punched into the border
-  for (let x = 1; x < MAP_W - 1; x++) if (grid[13][x] === T.GRASS || grid[13][x] === T.FLOWER) grid[13][x] = T.PATH;
-  if (id !== 'moss') grid[13][0] = T.EXIT_W;
-  if (id !== 'temple') grid[13][MAP_W - 1] = T.EXIT_E;
-  // keep spawn and boss tiles walkable
-  grid[13][3] = T.PATH; grid[13][MAP_W - 4] = T.PATH;
-  const boss = { moss: [20, 6], cliff: [24, 20], temple: [34, 13] }[id];
-  grid[boss[1]][boss[0]] = T.BOSS;
-  if (id === 'moss') grid[boss[1] + 1][boss[0]] = T.SPRING;
-  return { grid, boss };
+// two-way seams (world_manifest warps): [from zone, tx, ty, to zone, px, py]
+const WARP_LIST = [
+  ['town', 14, 19, 'route', 14, 1],   ['town', 15, 19, 'route', 15, 1],
+  ['route', 14, 0, 'town', 14, 18],   ['route', 15, 0, 'town', 15, 18],
+  ['route', 28, 14, 'forest', 1, 14], ['route', 29, 14, 'forest', 1, 15],
+  ['forest', 0, 14, 'route', 28, 13], ['forest', 0, 15, 'route', 29, 13],
+  ['forest', 28, 14, 'cave', 1, 14],  ['forest', 29, 14, 'cave', 1, 15],
+  ['cave', 0, 14, 'forest', 27, 14],  ['cave', 0, 15, 'forest', 27, 15],
+  ['cave', 24, 14, 'forest', 27, 14], ['cave', 24, 15, 'forest', 27, 15],
+  ['interior', 7, 11, 'town', 5, 7],  ['interior', 8, 11, 'town', 5, 7],
+];
+
+// interact doors: blocked tiles that warp (to) or say something (locked)
+const DOORS = {
+  town: [
+    { x: 5, y: 6, to: 'interior', px: 7, py: 10, label: 'You step inside your house.' },
+    { x: 24, y: 6, locked: 'The lab is locked for now.' },
+    { x: 15, y: 15, locked: 'Closed up tight. Talk to the shopkeeper outside.' },
+  ],
+};
+
+// shortcut: boss/heal markers hand-placed on walkable grass; re-check coords
+// against the collision grids if the maps are ever re-drawn.
+const MARKERS = {
+  forest: { boss: [27, 6], mission: 'gelundra', heal: [4, 19] },
+  cave:   { boss: [23, 20], mission: 'magmoth' },
+  interior: { heal: [3, 3] },
+};
+const EXTRA_BOSS = { cave: { x: 20, y: 4, mission: 'nocturne' } };
+
+export const NPCS = {
+  town: [
+    { id: 'villager_male',   x: 14, y: 10, sheet: 'villager_male_128x256.png',   lines: ['Beautiful morning in town, eh?', 'The tall grass on Route 1 is crawling with critters.'] },
+    { id: 'villager_female', x: 10, y: 10, sheet: 'villager_female_128x256.png', lines: ['The healer keeps a spring in the forest — your team will thank you.', 'Careful near the cave mouth.'] },
+    { id: 'kid',             x: 23, y: 10, sheet: 'kid_128x256.png',             lines: ["One day I'll catch a Voltip!", 'You look like a real ranger!'] },
+    { id: 'shopkeeper',      x: 16, y: 16, sheet: 'shopkeeper_128x256.png', shop: true, lines: ['Welcome! A potion for 2 Seedstones.', 'Come again!'] },
+    { id: 'rival',           x: 18, y: 11, sheet: 'rival_128x256.png',         lines: ['Heh. Still walking around on foot?', 'The cave is no place for a rookie.'] },
+    { id: 'officer',         x: 14, y: 17, sheet: 'officer_128x256.png',        lines: ['Stick to the path near the exits, kid.'] },
+  ],
+  route: [
+    { id: 'lab_assistant', x: 18, y: 2, sheet: 'lab_assistant_128x256.png', lines: ['Weaken wild creatures first, then throw a Seedstone.', 'Tall grass hides sparkles too — click them!'] },
+  ],
+  cave: [
+    { id: 'gym_leader', x: 22, y: 22, sheet: 'gym_leader_128x256.png', lines: ['Magmoth guards this depth. Show me your resolve.', 'Hmph. The Bluff remembers you.'] },
+  ],
+};
+
+export const PLAYER_SHEET = 'player_boy_128x256.png';
+
+// walk-sheet frames are 32px logical (384x1024 file, 12x4): dir row, frame column
+export function drawSheet(ctx, file, dir, frame, cx, groundY, height, flipX = false) {
+  const img = image(file);
+  if (!img || !img.naturalWidth) return false;
+  const fw = img.naturalWidth / 12, fh = img.naturalHeight / 4;
+  const w = height * (fw / fh);
+  ctx.save();
+  ctx.translate(cx, groundY);
+  if (flipX) ctx.scale(-1, 1);
+  ctx.drawImage(img, Math.round(frame * fw), dir * fh, fw, fh, -w / 2, -height, w, height);
+  ctx.restore();
+  return true;
 }
 
-function zoneName(id) {
-  return { moss: 'Moss Meadow', cliff: 'Cinder Bluff', temple: 'Gloom Shrine' }[id];
+const imgCache = {};
+export function image(file) {
+  if (imgCache[file] !== undefined) return imgCache[file];
+  const img = new Image();
+  img.onerror = () => { imgCache[file] = false; };
+  img.src = `assets/world/${file}`;
+  imgCache[file] = img;
+  return img;
 }
 
 export class World {
   constructor() {
-    this.zones = {};
-    for (const id of ['moss', 'cliff', 'temple']) this.zones[id] = generateZone(id);
-    this.zoneId = 'moss';
-    this.px = 3; this.py = 13;
+    this.grids = {};
+    for (const z of Object.keys(ZDEF)) this.grids[z] = GRIDS[z].map(r => r.slice());
+    for (const [z, list] of Object.entries(DOORS))
+      for (const d of list) this.grids[z][d.y][d.x] = 1;
+    for (const [z, list] of Object.entries(NPCS))
+      for (const n of list) this.grids[z][n.y][n.x] = 1;
+    this.warps = {};
+    for (const w of WARP_LIST) this.warps[`${w[0]},${w[1]},${w[2]}`] = { zone: w[3], px: w[4], py: w[5] };
+    this.zoneId = 'town';
+    this.px = 7; this.py = 18;
+    this.dir = 0; this.animT = 0;
     this.steps = 0;
-    this.items = [];            // hidden clickable sparkles {x,y,kind}
-    this.moving = 0;            // seconds of step cooldown left
-    this.bossDefeated = {};     // zoneId -> true once the mission is settled
-    this.notice = null;         // transient banner text {text, t}
+    this.items = [];
+    this.moving = 0;
+    this.warpCd = 0;
+    this.bossDefeated = {};
+    this.notice = null;
   }
 
-  zone() { return this.zones[this.zoneId]; }
-  tileAt(x, y) { const g = this.zone().grid; return g[y] && g[y][x] !== undefined ? g[y][x] : T.ROCK; }
-  blocked(x, y) { return BLOCKING.has(this.tileAt(x, y)); }
-
-  setNotice(text) { this.notice = { text, t: 2.6 }; }
+  dims(zone = this.zoneId) { const g = this.grids[zone]; return { w: g[0].length, h: g.length }; }
+  tileAt(x, y, zone = this.zoneId) { const g = this.grids[zone]; return (g[y] && g[y][x] !== undefined) ? g[y][x] : 1; }
+  blocked(x, y) { return this.tileAt(x, y) === 1; }
+  setNotice(text) { this.notice = { text, t: 3.2 }; }
+  doorAt(x, y) { return (DOORS[this.zoneId] || []).find(d => d.x === x && d.y === y); }
+  npcAt(x, y) { return (NPCS[this.zoneId] || []).find(n => n.x === x && n.y === y); }
 
   tryMove(dx, dy) {
-    if (this.moving > 0) return;
+    if (this.moving > 0) return null;
+    this.dir = dy > 0 ? 0 : dy < 0 ? 1 : dx < 0 ? 2 : 3;
     const nx = this.px + dx, ny = this.py + dy;
-    const target = this.tileAt(nx, ny);
-    if (target === T.EXIT_E) return this.changeZone(1);
-    if (target === T.EXIT_W) return this.changeZone(-1);
-    if (this.blocked(nx, ny)) return;
+    const wp = this.warps[`${this.zoneId},${nx},${ny}`];
+    if (wp && this.warpCd <= 0) { this.warpTo(wp); return null; }
+    if (this.blocked(nx, ny)) return null;
     this.px = nx; this.py = ny;
     this.moving = 0.13;
     this.steps += 1;
-    this.onStep(target);
+    return this.onStep();
   }
 
-  changeZone(dir) {
-    const order = ['moss', 'cliff', 'temple'];
-    const i = order.indexOf(this.zoneId) + dir;
-    if (i < 0 || i >= order.length) return;
-    this.zoneId = order[i];
-    this.px = dir > 0 ? 3 : MAP_W - 4;
-    this.py = 13;
-    this.setNotice(zoneName(this.zoneId));
-    this.spawnHiddenItem();
+  warpTo(wp) {
+    this.zoneId = wp.zone; this.px = wp.px; this.py = wp.py;
+    this.warpCd = 0.4;
+    this.items = [];
+    this.setNotice(ZDEF[wp.zone].name);
   }
 
-  onStep(tile) {
-    if (tile === T.BOSS) {
-      const mission = MISSIONS.find((m) => m.zone === this.zoneId);
-      if (mission && !this.bossDefeated[this.zoneId]) return { kind: 'boss', mission };
+  interact() {
+    const facing = [[0, 1], [0, -1], [-1, 0], [1, 0]][this.dir];
+    for (const [dx, dy] of [facing, [0, 0]]) {
+      const x = this.px + dx, y = this.py + dy;
+      const npc = this.npcAt(x, y);
+      if (npc) return { kind: 'talk', npc };
+      const door = this.doorAt(x, y);
+      if (door) {
+        if (door.to) { this.warpTo({ zone: door.to, px: door.px, py: door.py }); this.setNotice(door.label); }
+        else this.setNotice(door.locked);
+        return null;
+      }
     }
-    if (tile === T.GRASS) {
+    return null;
+  }
+
+  onStep() {
+    const m = MARKERS[this.zoneId];
+    if (m && m.boss && m.boss[0] === this.px && m.boss[1] === this.py) {
+      const mission = MISSIONS.find(mi => mi.key === m.mission);
+      if (mission && !this.bossDefeated[mission.zone]) return { kind: 'boss', mission };
+    }
+    const ex = EXTRA_BOSS[this.zoneId];
+    if (ex && ex.x === this.px && ex.y === this.py) {
+      const mission = MISSIONS.find(mi => mi.key === ex.mission);
+      if (mission && !this.bossDefeated[mission.zone]) return { kind: 'boss', mission };
+    }
+    if (m && m.heal && m.heal[0] === this.px && m.heal[1] === this.py) return { kind: 'heal' };
+    const z = ZDEF[this.zoneId];
+    if (z.encounter) {
       if (roll(ENCOUNTER_CHANCE)) {
-        const speciesId = pickWeighted(WILD_TABLES[this.zoneId]);
-        const level = rint(2, 9, mulberry32(this.steps * 977 + this.px));
+        const speciesId = pickWeighted(WILD_TABLES[z.wild]);
+        const level = rint(2, 12, mulberry32(this.steps * 977 + this.px));
         return { kind: 'wild', speciesId, level };
       }
       if (roll(HIDDEN_ITEM_CHANCE)) this.spawnHiddenItem();
@@ -119,8 +183,9 @@ export class World {
   spawnHiddenItem() {
     if (this.items.length >= 4) return;
     const rng = mulberry32((this.steps + 1) * 613 + this.px * 31 + this.py * 7);
+    const { w, h } = this.dims();
     for (let tries = 0; tries < 12; tries++) {
-      const x = rint(2, MAP_W - 3, rng), y = rint(2, MAP_H - 3, rng);
+      const x = rint(1, w - 2, rng), y = rint(1, h - 2, rng);
       if (!this.blocked(x, y) && !(x === this.px && y === this.py)) {
         const kind = roll(0.55, rng) ? 'seedstone' : 'potion';
         this.items.push({ x, y, kind, bob: rng() * 6.28 });
@@ -129,7 +194,6 @@ export class World {
     }
   }
 
-  // Mouse click on the field: collect a sparkle if it is visible and the ranger is close.
   clickAt(worldX, worldY, team) {
     const tx = Math.floor(worldX / TILE), ty = Math.floor(worldY / TILE);
     for (let i = this.items.length - 1; i >= 0; i--) {
@@ -148,25 +212,26 @@ export class World {
 
   update(dt) {
     if (this.moving > 0) this.moving -= dt;
+    if (this.warpCd > 0) this.warpCd -= dt;
+    this.animT += dt;
     if (this.notice) { this.notice.t -= dt; if (this.notice.t <= 0) this.notice = null; }
   }
 
   serialize() {
     return {
-      zoneId: this.zoneId, px: this.px, py: this.py, steps: this.steps,
+      zoneId: this.zoneId, px: this.px, py: this.py, dir: this.dir, steps: this.steps,
       items: this.items, bossDefeated: this.bossDefeated,
     };
   }
 
   static restore(data, world) {
     if (!data) return world;
-    world.zoneId = data.zoneId ?? 'moss';
-    world.px = data.px ?? 3; world.py = data.py ?? 13;
+    world.zoneId = ZDEF[data.zoneId] ? data.zoneId : 'town';
+    world.px = data.px ?? 7; world.py = data.py ?? 18;
+    world.dir = data.dir ?? 0;
     world.steps = data.steps ?? 0;
-    world.items = data.items ?? [];
+    world.items = Array.isArray(data.items) ? data.items.filter(it => !world.blocked(it.x, it.y)) : [];
     world.bossDefeated = data.bossDefeated ?? {};
     return world;
   }
 }
-
-export function wildSpeciesNames() { return Object.keys(SPECIES); }

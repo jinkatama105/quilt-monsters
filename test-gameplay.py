@@ -91,36 +91,42 @@ try:
         # --- hidden item pickup via real mouse click (ranger mid-map so camera is unclamped)
         # wait until the field loop accepts input again (battle exit may still hold busy)
         for _ in range(10):
+            mode = page.evaluate("__vs.mode")
+            if mode == "defeat":
+                page.keyboard.press("Enter")   # respawn in meadow, revive party
+                page.wait_for_timeout(600)
+                continue
             ready = page.evaluate("""() => {
               const st = __vs;
               if (st.mode !== 'field' || st.busy > 0 || st.fade) return false;
-              st.world.zoneId = 'cliff';
-              st.world.px = 20; st.world.py = 13; st.world.moving = 0;
-              st.world.items = [{x: 21, y: 13, kind: 'seedstone', bob: 0}];
+              st.world.zoneId = 'route';
+              st.world.px = 6; st.world.py = 3; st.world.moving = 0;
+              st.world.items = [{x: 7, y: 3, kind: 'seedstone', bob: 0}];
               return true;
             }""")
             if ready: break
             page.wait_for_timeout(400)
         before = page.evaluate("__vs.team.seedstones")
-        camX = 20*40 + 20 - 640; camY = 13*40 + 20 - 400
-        sx = 21*40 + 20 - camX; sy = 13*40 + 20 - camY
+        sx = 7*40 + 20; sy = 3*40 + 20   # route map is smaller than the viewport: camera pinned at 0,0
         got = False
         for _ in range(5):
+            m = page.evaluate("__vs.mode")
+            if m == "defeat":
+                page.keyboard.press("Enter"); page.wait_for_timeout(600)
+            elif m != "field":
+                page.keyboard.press("Escape"); page.wait_for_timeout(300)
+            page.evaluate("""() => {
+              const st = __vs;
+              if (st.mode === 'field') {
+                st.world.zoneId = 'route'; st.world.px = 6; st.world.py = 3; st.world.moving = 0;
+                st.world.items = [{x: 7, y: 3, kind: 'seedstone', bob: 0}];
+              }
+            }""")
             page.mouse.click(sx, sy)
             page.wait_for_timeout(350)
             if page.evaluate("__vs.team.seedstones") > before:
                 got = True
                 break
-            # re-arm in case a stray encounter consumed the item placement
-            page.evaluate("""() => {
-              const st = __vs;
-              if (st.mode === 'field') {
-                st.world.zoneId = 'cliff'; st.world.px = 20; st.world.py = 13; st.world.moving = 0;
-                st.world.items = [{x: 21, y: 13, kind: 'seedstone', bob: 0}];
-              }
-            }""")
-            if page.evaluate("__vs.mode") != "field":
-                page.keyboard.press("Escape"); page.wait_for_timeout(1200)
         picked2 = page.evaluate("__vs.team.seedstones")
         check(got, f"clicked sparkle granted seedstone ({before}->{picked2})")
 
@@ -144,17 +150,23 @@ try:
         page.wait_for_timeout(400)
         check(page.evaluate("__vs.mode") in ("field", "title"), "restart from victory returns to play")
 
-        # --- zone transitions
+        # --- zone transitions (walk east off the town edge -> route)
         page.goto(BASE + "?debug=field")
         page.wait_for_timeout(500)
         z = page.evaluate("""() => {
           const st = __vs;
-          for (let i=0;i<60;i++) { st.world.px = 36; st.world.tryMove(1,0); }
+          st.world.px = 14; st.world.py = 17; st.world.moving = 0; st.world.warpCd = 0;
+          for (let i = 0; i < 30; i++) { st.world.moving = 0; st.world.tryMove(0, 1); }
           return st.world.zoneId;
         }""")
-        # tryMove with moving cooldown may not advance; force position instead
-        z2 = page.evaluate("""() => { const st=__vs; st.world.changeZone(1); st.world.changeZone(1); return st.world.zoneId; }""")
-        check(z2 == "temple", f"zone transitions work ({z2})")
+        z2 = page.evaluate("""() => {
+          const st = __vs;
+          st.world.warpTo({ zone: 'forest', px: 1, py: 20 });
+          st.world.warpTo({ zone: 'cave', px: 1, py: 1 });
+          return st.world.zoneId;
+        }""")
+        check(z == "route", f"town east edge warps to route ({z})")
+        check(z2 == "cave", f"warp seams chain town->forest->cave ({z2})")
 
         browser.close()
 finally:
