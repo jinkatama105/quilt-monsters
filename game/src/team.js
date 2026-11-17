@@ -1,7 +1,7 @@
 // team.js — the player's party, inventory, stat growth and capture logic.
-import { SPECIES, MOVES, movesForSpecies } from './data.js?v=4';
-import { PARTY_MAX, XP_CURVE, STAT_GROWTH, CAPTURE } from './config.js?v=4';
-import { roll } from './random.js?v=4';
+import { SPECIES, MOVES, movesForSpecies } from './data.js?v=5';
+import { PARTY_MAX, XP_CURVE, STAT_GROWTH, CAPTURE } from './config.js?v=5';
+import { roll } from './random.js?v=5';
 
 /** Build a fresh creature instance from a species id + level. */
 export function makeCreature(speciesId, level) {
