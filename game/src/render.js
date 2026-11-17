@@ -67,7 +67,7 @@ function drawPngCreature(ctx, speciesId, pose, cxp, cyp, scale = 1) {
 // these ship with real alpha. Falls back to procedural when a file is missing.
 const monsterCache = new Map();
 // assets that actually ship (makefun roster loop adds the rest later); prevents 404 noise
-const GHIBLI_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite']); // tidrel & gloomcap: no art yet (Muse) -> procedural fallback
+const GHIBLI_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite','tidrel']); // tidrel & gloomcap: no art yet (Muse) -> procedural fallback
 function drawGhibliCreature(ctx, speciesId, cxp, cyp, pose, isPlayer) {
   if (!GHIBLI_ART.has(speciesId)) return false;
   let img = monsterCache.get(speciesId);
