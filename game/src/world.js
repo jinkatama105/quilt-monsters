@@ -51,12 +51,12 @@ const EXTRA_BOSS = { cave: { x: 20, y: 4, mission: 'nocturne' } };
 
 export const NPCS = {
   town: [
-    { id: 'villager_male',   x: 14, y: 10, sheet: 'villager_male_128x256.png',   lines: ['Beautiful morning in town, eh?', 'The tall grass on Route 1 is crawling with critters.'] },
-    { id: 'villager_female', x: 10, y: 10, sheet: 'villager_female_128x256.png', lines: ['The healer keeps a spring in the forest — your team will thank you.', 'Careful near the cave mouth.'] },
-    { id: 'kid',             x: 23, y: 10, sheet: 'kid_128x256.png',             lines: ["One day I'll catch a Voltip!", 'You look like a real ranger!'] },
-    { id: 'shopkeeper',      x: 16, y: 16, sheet: 'shopkeeper_128x256.png', shop: true, lines: ['Welcome! A potion for 2 Seedstones.', 'Come again!'] },
-    { id: 'rival',           x: 18, y: 11, sheet: 'rival_128x256.png',         lines: ['Heh. Still walking around on foot?', 'The cave is no place for a rookie.'] },
-    { id: 'officer',         x: 14, y: 17, sheet: 'officer_128x256.png',        lines: ['Stick to the path near the exits, kid.'] },
+    { id: 'villager_male',   x: 5, y: 7, sheet: 'villager_male_128x256.png',   lines: ['Beautiful morning in town, eh?', 'The tall grass on Route 1 is crawling with critters.'] },
+    { id: 'villager_female', x: 24, y: 7, sheet: 'villager_female_128x256.png', lines: ['The healer keeps a spring in the forest — your team will thank you.', 'Careful near the cave mouth.'] },
+    { id: 'kid',             x: 20, y: 9, sheet: 'kid_128x256.png',             lines: ["One day I'll catch a Voltip!", 'You look like a real ranger!'] },
+    { id: 'shopkeeper',      x: 13, y: 16, sheet: 'shopkeeper_128x256.png', shop: true, lines: ['Welcome! A potion for 2 Seedstones.', 'Come again!'] },
+    { id: 'rival',           x: 9, y: 9, sheet: 'rival_128x256.png',         lines: ['Heh. Still walking around on foot?', 'The cave is no place for a rookie.'] },
+    { id: 'officer',         x: 14, y: 16, sheet: 'officer_128x256.png',        lines: ['Stick to the path near the exits, kid.'] },
   ],
   route: [
     { id: 'lab_assistant', x: 18, y: 2, sheet: 'lab_assistant_128x256.png', lines: ['Weaken wild creatures first, then throw a Seedstone.', 'Tall grass hides sparkles too — click them!'] },
