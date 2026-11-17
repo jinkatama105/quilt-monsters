@@ -1,10 +1,10 @@
 // hud.js — in-game overlay panels drawn on the canvas: field status (zone,
 // party hearts, items, mission tracker) and the battle HUD (HP bars, levels,
 // XP, action wheel, message log).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=10';
-import { SPECIES, MOVES } from './data.js?v=10';
-import { MISSIONS } from './data.js?v=10';
-import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=10';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=11';
+import { SPECIES, MOVES } from './data.js?v=11';
+import { MISSIONS } from './data.js?v=11';
+import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=11';
 
 export function panel(ctx, x, y, w, h, alpha = 0.92) {
   if (drawSlice(ctx, 'hud_panel', x, y, w, h, 24, alpha)) return;
@@ -179,15 +179,15 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   const enemySp = SPECIES[battle.enemy.species];
   // enemy card
   artPanel(ctx, 'enemy_card', 60, 34, 420, 96);
+  // art bands measured from enemy_card.png: name plate y~0.26-0.43, hp slot y~0.58-0.74 x~0.09-0.91
   ctx.fillStyle = INK; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(`${enemySp.name}${battle.kind === 'boss' ? ' ‹TRIBUS›' : ''}`, 78, 62);
+  ctx.fillText(`${enemySp.name}${battle.kind === 'boss' ? ' ‹TRIBUS›' : ''}`, 78, 71);
   ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
-  ctx.fillText(`Lv ${battle.enemy.level} · ${enemySp.element}`, 78, 82);
-  hpBar(ctx, 78, 92, 300, 14, battle.enemy.hp / battle.enemy.stats.hp);
-  // HP numbers beside the bar (was: drawn on top of it — QA defect)
+  ctx.fillText(`Lv ${battle.enemy.level} · ${enemySp.element}`, 78, 88);
   ctx.fillStyle = INK; ctx.font = '12px monospace'; ctx.textAlign = 'right';
-  ctx.fillText(`${battle.enemy.hp}/${battle.enemy.stats.hp}`, 462, 103);
+  ctx.fillText(`${battle.enemy.hp}/${battle.enemy.stats.hp}`, 462, 88);
   ctx.textAlign = 'left';
+  hpBar(ctx, 90, 95, 330, 11, battle.enemy.hp / battle.enemy.stats.hp);
 
   // player card
   const pSp = SPECIES[battle.player.species];

@@ -1,9 +1,9 @@
 // screens.js — the game's screens: title, codex (creature dex + type chart),
 // victory, defeat, and the battle action layout (buttons + click routing).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js?v=10';
-import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js?v=10';
-import { drawCreature, drawSeedstoneIcon } from './art.js?v=10';
-import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js?v=10';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js?v=11';
+import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js?v=11';
+import { drawCreature, drawSeedstoneIcon } from './art.js?v=11';
+import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js?v=11';
 
 function centerText(ctx, text, x, y, font, color) {
   ctx.font = font; ctx.fillStyle = color; ctx.textAlign = 'center';
