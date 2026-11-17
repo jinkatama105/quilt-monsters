@@ -41,9 +41,7 @@ export function drawTitle(ctx, t) {
   }
 
   // crest: three heroes in the intro pose, on the painting with soft shadows
-  drawCreature(ctx, 'verdanom', 250, 470, t, 'idle');
-  drawCreature(ctx, 'emberling', 1030, 470, t + 1.4, 'idle');
-  drawCreature(ctx, 'nocturne', 640, 640, t + 2.2, 'idle');
+  // hero painting already shows the three Tribus — no vector sprites on top
 
   // title plate — Muse watercolor frame (falls back to procedural double line)
   if (!drawSlice(ctx, 'title_frame', VIEW_W / 2 - 400, 90, 800, 170, 32, 0.95)) {
@@ -74,7 +72,7 @@ function titleBgImage() {
     _titleBg = null;
     const img = new Image();
     img.onload = () => { _titleBg = img; };
-    img.src = 'assets/world/ghibli-map-forest.png';
+    img.src = 'assets/title_hero.png';
   }
   return _titleBg;
 }
