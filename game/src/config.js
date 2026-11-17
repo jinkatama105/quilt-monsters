@@ -22,6 +22,9 @@ export const STAT_GROWTH = 0.055; // per level multiplier on base stats
 
 export const DEFEAT_PENALTY_ITEMS = 1; // lost seedstones when the party falls
 
+// Tile ids shared by world.js (map) and art.js (drawing).
+export const T = { GROUND: 0, GRASS: 1, ROCK: 2, WATER: 3, PATH: 4, FLOWER: 5, EXIT_E: 6, EXIT_W: 7, BOSS: 8, SPRING: 9, PILLAR: 10 };
+
 export const PALETTE = {
   ink: '#0b0f0d',
   paper: '#e8f2e4',
