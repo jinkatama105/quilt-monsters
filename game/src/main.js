@@ -99,7 +99,7 @@ function debugStart() {
 function startEncounterBattle(enemy, kind, mission = null) {
   if (!state.team.firstAlive()) return;
   state.battle = startBattle(state.team, enemy, kind, mission);
-  state.battle._kind = kind; state.battle._mission = mission;
+  state.battle._kind = kind; state.battle._mission = mission; state.battle._zone = state.world.zoneId;
   state.mode = 'battle';
   state.submenu = null;
   state.busy = 0;

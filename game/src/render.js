@@ -10,6 +10,7 @@ import { VIEW_W, VIEW_H, TILE, PALETTE, ELEMENT_COLORS } from './config.js';
 import { MAP_W, MAP_H, T } from './world.js';
 import { drawTile, drawRanger, drawCreature, drawSparkle } from './art.js';
 import { SPECIES } from './data.js';
+import { battleBg, drawBattleBg } from './bg.js';
 
 // ------------------------------------------------------------ chroma-key PNG loader
 const pngCache = new Map();        // "species:pose" -> keyed canvas | false (tried & missing)
@@ -125,11 +126,17 @@ export function drawBattle(ctx, battle, t, particles) {
   const playerSp = SPECIES[battle.player.species];
   const ec = ELEMENT_COLORS[enemySp.element], pc = ELEMENT_COLORS[playerSp.element];
 
-  // stage backdrop blends the two elements
+  // zone backdrop (assets/battle/<zone>.png) when available, else element blend
+  const zoneId = battle._zone;
+  if (zoneId) battleBg(zoneId);
+  if (zoneId && drawBattleBg(ctx, zoneId, VIEW_W, VIEW_H)) {
+    // fallthrough: painted below still decorates with ground ellipses
+  } else {
   const bg = ctx.createLinearGradient(0, 0, 0, VIEW_H);
   bg.addColorStop(0, mixHex('#10151c', ec.dark));
   bg.addColorStop(1, mixHex('#0d1310', pc.dark));
   ctx.fillStyle = bg; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  }
 
   // ground ellipses
   const anchors = battleAnchors();
