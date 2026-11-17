@@ -1,18 +1,18 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=6';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=6';
-import { Input } from './input.js?v=6';
-import { World } from './world.js?v=6';
-import { TeamManager, makeCreature } from './team.js?v=6';
-import { startBattle } from './battle.js?v=6';
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=6';
-import { drawFieldHud, panel } from './hud.js?v=6';
-import { PALETTE } from './config.js?v=6';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=7';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=7';
+import { Input } from './input.js?v=7';
+import { World } from './world.js?v=7';
+import { TeamManager, makeCreature } from './team.js?v=7';
+import { startBattle } from './battle.js?v=7';
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=7';
+import { drawFieldHud, panel } from './hud.js?v=7';
+import { PALETTE } from './config.js?v=7';
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=6';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=6';
-import { saveGame, loadGame, canSave } from './save.js?v=6';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=7';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=7';
+import { saveGame, loadGame, canSave } from './save.js?v=7';
 
 const canvas = document.getElementById('game');
 canvas.width = VIEW_W; canvas.height = VIEW_H;
@@ -398,8 +398,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=6';
-import { MOVES as MOVES_TABLE } from './data.js?v=6';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=7';
+import { MOVES as MOVES_TABLE } from './data.js?v=7';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {

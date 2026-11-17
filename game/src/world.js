@@ -3,12 +3,12 @@
 // world manifest. Zones: town, route, forest, cave, interior. Tall zones keep
 // random encounters, invisible boss markers keep the three Tribus missions,
 // NPCs block their tile and answer Enter.
-import { TILE, ENCOUNTER_CHANCE, HIDDEN_ITEM_CHANCE } from './config.js?v=6';
-import { WILD_TABLES, MISSIONS } from './data.js?v=6';
-import { GRIDS } from './mapdata.js?v=6';
-import { mulberry32, pickWeighted, roll, rint } from './random.js?v=6';
+import { TILE, ENCOUNTER_CHANCE, HIDDEN_ITEM_CHANCE, STEP_TIME } from './config.js?v=7';
+import { WILD_TABLES, MISSIONS } from './data.js?v=7';
+import { GRIDS } from './mapdata.js?v=7';
+import { mulberry32, pickWeighted, roll, rint } from './random.js?v=7';
 
-export { T } from './config.js?v=6';
+export { T } from './config.js?v=7';
 
 const ZDEF = {
   town:     { map: 'ghibli-map-town.png',      encounter: false, name: 'Verdant Town' },
@@ -129,14 +129,17 @@ export class World {
     const wp = this.warps[`${this.zoneId},${nx},${ny}`];
     if (wp && this.warpCd <= 0) { this.warpTo(wp); return null; }
     if (this.blocked(nx, ny)) return null;
+    this.fromPx = this.px; this.fromPy = this.py;   // interpolation anchor for smooth steps
     this.px = nx; this.py = ny;
-    this.moving = 0.13;
+    this.moving = STEP_TIME;
     this.steps += 1;
     return this.onStep();
   }
 
   warpTo(wp) {
     this.zoneId = wp.zone; this.px = wp.px; this.py = wp.py;
+    this.fromPx = wp.px; this.fromPy = wp.py;
+    this.moving = 0;
     this.warpCd = 0.4;
     this.items = [];
     this.setNotice(ZDEF[wp.zone].name);
@@ -214,6 +217,7 @@ export class World {
 
   update(dt) {
     if (this.moving > 0) this.moving -= dt;
+    if (this.fromPx === undefined) { this.fromPx = this.px; this.fromPy = this.py; }
     if (this.warpCd > 0) this.warpCd -= dt;
     this.animT += dt;
     if (this.notice) { this.notice.t -= dt; if (this.notice.t <= 0) this.notice = null; }

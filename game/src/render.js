@@ -6,11 +6,11 @@
 // those poses. The black pixels are keyed to transparency at threshold 24. The game
 // runs at full fidelity without the folder or the flag — nothing is fetched unless
 // the flag is on, so no 404 noise in a normal run.
-import { VIEW_W, VIEW_H, TILE, PALETTE, ELEMENT_COLORS } from './config.js?v=6';
-import { MAPS, NPCS, PLAYER_SHEET, image, drawSheet } from './world.js?v=6';
-import { drawRanger, drawCreature, drawSparkle } from './art.js?v=6';
-import { SPECIES } from './data.js?v=6';
-import { battleBg, drawBattleBg } from './bg.js?v=6';
+import { VIEW_W, VIEW_H, TILE, STEP_TIME, PALETTE, ELEMENT_COLORS } from './config.js?v=7';
+import { MAPS, NPCS, PLAYER_SHEET, image, drawSheet } from './world.js?v=7';
+import { drawRanger, drawCreature, drawSparkle } from './art.js?v=7';
+import { SPECIES } from './data.js?v=7';
+import { battleBg, drawBattleBg } from './bg.js?v=7';
 
 // ------------------------------------------------------------ chroma-key PNG loader
 const pngCache = new Map();        // "species:pose" -> keyed canvas | false (tried & missing)
@@ -67,7 +67,7 @@ function drawPngCreature(ctx, speciesId, pose, cxp, cyp, scale = 1) {
 // these ship with real alpha. Falls back to procedural when a file is missing.
 const monsterCache = new Map();
 // assets that actually ship (makefun roster loop adds the rest later); prevents 404 noise
-const GHIBLI_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite','tidrel']); // tidrel & gloomcap: no art yet (Muse) -> procedural fallback
+const GHIBLI_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite']); // tidrel & gloomcap: no art yet (Muse) -> procedural fallback
 function drawGhibliCreature(ctx, speciesId, cxp, cyp, pose, isPlayer) {
   if (!GHIBLI_ART.has(speciesId)) return false;
   let img = monsterCache.get(speciesId);
@@ -118,10 +118,20 @@ export class Particles {
 
 // ---------------------------------------------------------------- field scene
 // drawField: authored PNG map under a camera, NPCs + player as walk sheets.
+// smoothPos: eased interpolation between tiles — px/py are the logical target,
+// fromPx/fromPy the step start; prevents the teleport-feel at high step rates.
+function smoothPos(world) {
+  if (!(world.moving > 0) || world.fromPx === undefined) return { x: world.px, y: world.py };
+  const p = 1 - Math.max(0, Math.min(1, world.moving / STEP_TIME)); // 0..1 step progress
+  const e = p * p * (3 - 2 * p);                                    // smoothstep
+  return { x: world.fromPx + (world.px - world.fromPx) * e, y: world.fromPy + (world.py - world.fromPy) * e };
+}
+
 export function drawField(ctx, world, t) {
   const { w: MW, h: MH } = world.dims();
-  const camX = Math.max(0, Math.min(MW * TILE - VIEW_W, world.px * TILE + TILE / 2 - VIEW_W / 2));
-  const camY = Math.max(0, Math.min(MH * TILE - VIEW_H, world.py * TILE + TILE / 2 - VIEW_H / 2));
+  const p = smoothPos(world);
+  const camX = Math.max(0, Math.min(MW * TILE - VIEW_W, p.x * TILE + TILE / 2 - VIEW_W / 2));
+  const camY = Math.max(0, Math.min(MH * TILE - VIEW_H, p.y * TILE + TILE / 2 - VIEW_H / 2));
   ctx.save();
   ctx.translate(-Math.round(camX), -Math.round(camY));
   const map = image(MAPS[world.zoneId].map);
@@ -137,14 +147,16 @@ export function drawField(ctx, world, t) {
     const cx = n.x * TILE + TILE / 2, gy = n.y * TILE + TILE - 2;
     ctx.fillStyle = 'rgba(0,0,0,.25)';
     ctx.beginPath(); ctx.ellipse(cx, gy, 14, 5, 0, 0, 7); ctx.fill();
-    if (!drawSheet(ctx, n.sheet, 0, 1 + (Math.floor(t * 2 + n.x) % 2), cx, gy, TILE * 1.7)) {
+    if (!drawSheet(ctx, n.sheet, 0, Math.floor(t * 2 + n.x) % 2 === 0 ? 0 : 2, cx, gy, TILE * 1.7)) {
       drawRanger(ctx, cx, gy - TILE * 0.8, 0, false, t + n.x);   // procedural fallback
     }
   }
-  // ranger
+  // ranger — position interpolated, walk frame follows step progress so the
+  // foot plants at each tile arrival (frame from the global timer slipped).
   const walking = world.moving > 0.02;
-  const frame = walking ? (1 + Math.floor(world.animT * 8) % 2) : 1;
-  const cx = world.px * TILE + TILE / 2, gy = world.py * TILE + TILE - 2;
+  const prog = walking ? 1 - Math.max(0, Math.min(1, world.moving / STEP_TIME)) : 0;
+  const frame = walking ? (1 + Math.floor(prog * 2) % 2) : 0; // contact|passing|contact across one step; idle = contact
+  const cx = p.x * TILE + TILE / 2, gy = p.y * TILE + TILE - 2;
   ctx.fillStyle = 'rgba(0,0,0,.3)';
   ctx.beginPath(); ctx.ellipse(cx, gy, 15, 6, 0, 0, 7); ctx.fill();
   if (!drawSheet(ctx, PLAYER_SHEET, world.dir, frame, cx, gy, TILE * 1.9)) {
