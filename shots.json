@@ -1,0 +1,6 @@
+[
+  { "name": "01-title.jpg", "query": "?debug=title" },
+  { "name": "02-battle.jpg", "query": "?debug=battle" },
+  { "name": "03-codex.jpg", "query": "?debug=codex" },
+  { "name": "04-victory.jpg", "query": "?debug=win" }
+]
