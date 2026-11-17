@@ -1,9 +1,66 @@
 // render.js — scene drawing on the main canvas: the camera-followed top-down
 // field, the battle stage with creature portraits, hit flashes and particles.
+// Also hosts the optional chroma-key PNG creature loader: if game/assets/creatures/
+// later gains <species>_{idle,attack,defeat}.png files on black backgrounds, enabling
+// it (?pngart=1 or localStorage vs.pngart=1) replaces the procedural portraits for
+// those poses. The black pixels are keyed to transparency at threshold 24. The game
+// runs at full fidelity without the folder or the flag — nothing is fetched unless
+// the flag is on, so no 404 noise in a normal run.
 import { VIEW_W, VIEW_H, TILE, PALETTE, ELEMENT_COLORS } from './config.js';
 import { MAP_W, MAP_H, T } from './world.js';
 import { drawTile, drawRanger, drawCreature, drawSparkle } from './art.js';
 import { SPECIES } from './data.js';
+
+// ------------------------------------------------------------ chroma-key PNG loader
+const pngCache = new Map();        // "species:pose" -> keyed canvas | false (tried & missing)
+const pending  = new Set();        // keys currently loading
+let chromaEnabled = false;
+try {
+  chromaEnabled = new URLSearchParams(location.search).has('pngart') ||
+    localStorage.getItem('vs.pngart') === '1';
+} catch (e) { /* blocked storage: procedural art only, which is fine */ }
+
+/** Black -> transparent at threshold; returns an offscreen canvas. */
+function keyChroma(img) {
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const cx = c.getContext('2d');
+  cx.drawImage(img, 0, 0);
+  const data = cx.getImageData(0, 0, c.width, c.height);
+  const px = data.data, THRESH = 24;
+  for (let i = 0; i < px.length; i += 4) {
+    const lum = px[i] + px[i + 1] + px[i + 2];
+    if (lum <= THRESH * 3) { px[i + 3] = 0; }
+    else if (lum < THRESH * 6) { px[i + 3] = Math.round(255 * (lum / (THRESH * 6) - 0.5)); } // soft edge
+  }
+  cx.putImageData(data, 0, 0);
+  return c;
+}
+
+/** Kick a silent load for species+pose if the flag is on. onerror just records false. */
+function requestPng(speciesId, pose) {
+  if (!chromaEnabled) return;
+  const key = speciesId + ':' + pose;
+  if (pngCache.has(key) || pending.has(key)) return;
+  pending.add(key);
+  const img = new Image();
+  img.onload = () => { pending.delete(key); try { pngCache.set(key, keyChroma(img)); } catch (e) { pngCache.set(key, false); } };
+  img.onerror = () => { pending.delete(key); pngCache.set(key, false); };
+  img.src = `assets/creatures/${speciesId}_${pose}.png`;
+}
+
+/** Draw the keyed PNG if we have one; true when it drew. */
+function drawPngCreature(ctx, speciesId, pose, cxp, cyp, scale = 1) {
+  requestPng(speciesId, pose);
+  const sprite = pngCache.get(speciesId + ':' + pose);
+  if (!sprite) return false;
+  ctx.save();
+  ctx.translate(cxp, cyp);
+  ctx.scale(scale, scale);
+  ctx.drawImage(sprite, -sprite.width / 2, -sprite.height / 2);
+  ctx.restore();
+  return true;
+}
 
 export class Particles {
   constructor() { this.list = []; }
@@ -96,16 +153,25 @@ export function drawBattle(ctx, battle, t, particles) {
 
   const fx = battle.fx;
   const shake = (who) => fx && fx.target === who && fx.kind === 'hit' ? Math.sin(fx.t * 60) * 6 : 0;
-  const posOf = (who) => (battle.enemy.hp <= 0 && who === 'enemy') || (battle.player.hp <= 0 && who === 'player') ? 'defeat'
+  const poseOf = (who) => (battle.enemy.hp <= 0 && who === 'enemy') || (battle.player.hp <= 0 && who === 'player') ? 'defeat'
+    : fx && fx.target === who && fx.kind === 'attack' ? 'attack'
     : fx && fx.target === who && (fx.kind === 'hit' || fx.kind === 'miss') ? 'hurt' : 'idle';
+  const drawOne = (sp, a, who) => {
+    const pose = poseOf(who);
+    // optional chroma-keyed PNG art overrides procedural for idle/attack/defeat poses
+    if (pose === 'idle' || pose === 'attack' || pose === 'defeat') {
+      if (drawPngCreature(ctx, sp, pose, a.x, a.y)) return;
+    }
+    drawCreature(ctx, sp, a.x, a.y, t, pose);
+  };
 
   // enemy portrait
   ctx.save(); ctx.translate(shake('enemy'), 0);
-  drawCreature(ctx, battle.enemy.species, anchors.enemy.x, anchors.enemy.y, t, posOf('enemy'));
+  drawOne(battle.enemy.species, anchors.enemy, 'enemy');
   ctx.restore();
   // player portrait
   ctx.save(); ctx.translate(shake('player'), 0);
-  drawCreature(ctx, battle.player.species, anchors.player.x, anchors.player.y, t, posOf('player'));
+  drawOne(battle.player.species, anchors.player, 'player');
   ctx.restore();
 
   // capture swirl while a seedstone works

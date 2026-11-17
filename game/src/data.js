@@ -93,15 +93,70 @@ export const SPECIES = {
     base: { hp: 80, atk: 15, def: 11, spd: 12 }, xpYield: 500, rarity: 0,
     learn: [{ lv: 1, move: 'nightCreep' }, { lv: 1, move: 'gloomSpore' }, { lv: 1, move: 'duskRequiem' }, { lv: 1, move: 'hexBloom' }],
   },
+  // ---- nine common wild juniors (catchable, all procedurally drawn in art.js) ----
+  cindermot: {
+    id: 'cindermot', name: 'Cindermot', element: 'Ember',
+    desc: 'A wandering spark that mistakes every campfire for a long-lost cousin.',
+    base: { hp: 18, atk: 7, def: 4, spd: 9 }, xpYield: 18, rarity: 4,
+    learn: [{ lv: 1, move: 'emberDart' }, { lv: 5, move: 'cinderRoar' }],
+  },
+  embersnail: {
+    id: 'embersnail', name: 'Embersnail', element: 'Ember',
+    desc: 'Its shell smoulders slowly. Pedestrians are advised not to lean on it.',
+    base: { hp: 24, atk: 5, def: 9, spd: 2 }, xpYield: 19, rarity: 4,
+    learn: [{ lv: 1, move: 'emberDart' }, { lv: 6, move: 'flareFocus' }],
+  },
+  mossbeak: {
+    id: 'mossbeak', name: 'Mossbeak', element: 'Verdant',
+    desc: 'A round bird with a leaf crest that files its seeds for later.',
+    base: { hp: 22, atk: 6, def: 6, spd: 7 }, xpYield: 20, rarity: 4,
+    learn: [{ lv: 1, move: 'leafLash' }, { lv: 5, move: 'mossVeil' }],
+  },
+  thornback: {
+    id: 'thornback', name: 'Thornback', element: 'Verdant',
+    desc: 'A living bramble-shield. Predators politely look elsewhere.',
+    base: { hp: 26, atk: 7, def: 10, spd: 3 }, xpYield: 24, rarity: 3,
+    learn: [{ lv: 1, move: 'leafLash' }, { lv: 7, move: 'bloomDrain' }],
+  },
+  stormpup: {
+    id: 'stormpup', name: 'Stormpup', element: 'Volt',
+    desc: 'Chases thunderheads like a dog chases cars. Both are equally confused.',
+    base: { hp: 20, atk: 8, def: 5, spd: 10 }, xpYield: 22, rarity: 4,
+    learn: [{ lv: 1, move: 'sparkJolt' }, { lv: 6, move: 'staticField' }],
+  },
+  peblite: {
+    id: 'peblite', name: 'Peblite', element: 'Volt',
+    desc: 'A pebble with a static charge and unshakeable opinions about roads.',
+    base: { hp: 23, atk: 7, def: 8, spd: 4 }, xpYield: 21, rarity: 4,
+    learn: [{ lv: 1, move: 'sparkJolt' }, { lv: 8, move: 'thunderPelea' }],
+  },
+  frostcap: {
+    id: 'frostcap', name: 'Frostcap', element: 'Tide',
+    desc: 'A little ice mushroom that weeps clean cold tears into the springs.',
+    base: { hp: 23, atk: 6, def: 8, spd: 5 }, xpYield: 21, rarity: 4,
+    learn: [{ lv: 1, move: 'bubbleFlick' }, { lv: 6, move: 'tideMend' }],
+  },
+  duskfin: {
+    id: 'duskfin', name: 'Duskfin', element: 'Tide',
+    desc: 'Surfaces only at sundown. Anglers consider this excellent manners.',
+    base: { hp: 21, atk: 7, def: 6, spd: 9 }, xpYield: 21, rarity: 3,
+    learn: [{ lv: 1, move: 'bubbleFlick' }, { lv: 7, move: 'brineWave' }],
+  },
+  gloomling: {
+    id: 'gloomling', name: 'Gloomling', element: 'Gloom',
+    desc: 'A shadow that fell off a mushroom and grew ambitions.',
+    base: { hp: 19, atk: 8, def: 5, spd: 8 }, xpYield: 20, rarity: 4,
+    learn: [{ lv: 1, move: 'gloomSpore' }, { lv: 6, move: 'hexBloom' }],
+  },
 };
 
 export const SPECIES_LIST = Object.keys(SPECIES);
 
 // Wild encounter tables per zone id (weight).
 export const WILD_TABLES = {
-  moss:   [['verdanom', 4], ['tidrel', 3], ['voltip', 2], ['emberling', 2], ['gloomcap', 1]],
-  cliff:  [['emberling', 5], ['voltip', 3], ['magmoth', 0.02], ['gloomcap', 1]],
-  temple: [['gloomcap', 5], ['verdanom', 2], ['nocturne', 0.012], ['tidrel', 1]],
+  moss:   [['mossbeak', 5], ['frostcap', 3], ['stormpup', 2], ['thornback', 2], ['gloomling', 2], ['verdanom', 4], ['tidrel', 3], ['voltip', 2], ['emberling', 2], ['gloomcap', 1]],
+  cliff:  [['cindermot', 5], ['embersnail', 3], ['peblite', 3], ['stormpup', 2], ['emberling', 5], ['voltip', 3], ['magmoth', 0.02], ['gloomcap', 1]],
+  temple: [['gloomling', 5], ['duskfin', 2], ['frostcap', 2], ['gloomcap', 5], ['verdanom', 2], ['nocturne', 0.012], ['tidrel', 1]],
 };
 
 // Fixed story encounters: walking onto the tile near these markers starts the boss battle.

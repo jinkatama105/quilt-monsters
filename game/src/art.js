@@ -294,7 +294,179 @@ export const SPECIES_ART = {
   emberling: drawEmberling, verdanom: drawVerdanom, voltip: drawVoltip,
   tidrel: drawTidrel, gloomcap: drawGloomcap,
   magmoth: drawMagmoth, gelundra: drawGelundra, nocturne: drawNocturne,
+  cindermot: drawCindermot, embersnail: drawEmbersnail, mossbeak: drawMossbeak,
+  thornback: drawThornback, stormpup: drawStormpup, peblite: drawPeblite,
+  frostcap: drawFrostcap, duskfin: drawDuskfin, gloomling: drawGloomling,
 };
+
+// ---------------------------------------------------------------- juniors (nine common wilds)
+export function drawCindermot(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Ember) {
+  const hover = pos === 'defeat' ? 24 : Math.sin(t * 4) * 6;
+  ctx.save(); ctx.translate(cx, cy - hover);
+  // ember trail behind the spark-mote
+  ctx.fillStyle = color.dark; ctx.globalAlpha = 0.5;
+  for (let i = 1; i <= 3; i++) { ctx.beginPath(); ctx.arc(-i * 14, i * 5, 7 - i * 1.6, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = bodyGrad(ctx, 0, 0, 46, color);
+  ctx.beginPath(); ctx.arc(0, 0, 20 + sway(t), 0, 7); ctx.fill(); outline(ctx, 4); ctx.stroke();
+  // wings of flame
+  for (const dir of [-1, 1]) {
+    ctx.fillStyle = color.glow; ctx.globalAlpha = 0.8;
+    ctx.beginPath(); ctx.ellipse(dir * 20, -14, 14, 6, dir * (0.7 + sway(t) * 0.2), 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  eye(ctx, -7, -3, 5.5, color, 0); eye(ctx, 7, -3, 5.5, color, 0);
+  ctx.restore();
+}
+export function drawEmbersnail(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Ember) {
+  const droop = pos === 'defeat' ? 12 : 0;
+  ctx.save(); ctx.translate(cx, cy + droop);
+  // smouldering shell (spiral)
+  ctx.fillStyle = bodyGrad(ctx, 8, -12, 66, color);
+  ctx.beginPath(); ctx.arc(8, -12, 40 + droop * 0.2, 0, 7); ctx.fill(); outline(ctx); ctx.stroke();
+  ctx.strokeStyle = color.dark; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(8, -12, 26, sway(t) * 0.3, sway(t) * 0.3 + 5.2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(8, -12, 13, -sway(t) * 0.3, -sway(t) * 0.3 + 4.4); ctx.stroke();
+  // smoke from shell vent
+  ctx.fillStyle = 'rgba(220,220,220,.35)';
+  for (let i = 0; i < 3; i++) { const s = (t * 20 + i * 14) % 42; ctx.beginPath(); ctx.arc(8 + Math.sin(s * 0.2) * 5, -56 - s, 4 + s * 0.12, 0, 7); ctx.fill(); }
+  // foot + head
+  ctx.fillStyle = bodyGrad(ctx, -26, 26, 44, { main: '#f0d9b8', glow: '#fff3dd', dark: '#b08d5c' });
+  ctx.beginPath(); ctx.ellipse(-6, 30, 44, 12, 0, 0, 7); ctx.fill(); outline(ctx); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(-40, 18 - droop, 14, 18, -0.3, 0, 7); ctx.fill(); ctx.stroke();
+  eye(ctx, -44, 12 - droop, 5.5, color, 0);
+  ctx.restore();
+}
+export function drawMossbeak(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Verdant) {
+  const hop = pos === 'defeat' ? 14 : Math.abs(Math.sin(t * 3)) * 4;
+  ctx.save(); ctx.translate(cx, cy - hop);
+  // round body
+  ctx.fillStyle = bodyGrad(ctx, 0, 8, 60, { main: '#7fa05b', glow: '#d7e8a8', dark: '#3c5930' });
+  ctx.beginPath(); ctx.arc(0, 10, 40, 0, 7); ctx.fill(); outline(ctx); ctx.stroke();
+  // leaf crest
+  ctx.fillStyle = color.main;
+  for (const [a, w] of [[-0.5, 12], [-0.1, 15], [0.35, 11]]) {
+    ctx.beginPath(); ctx.ellipse(Math.cos(a - 1.6) * 34, -24 + Math.sin(a) * 6, w, 6, a, 0, 7); ctx.fill(); outline(ctx, 3); ctx.stroke();
+  }
+  // beak + feet
+  ctx.fillStyle = '#e8b34b';
+  ctx.beginPath(); ctx.moveTo(30, 6); ctx.lineTo(52, 12); ctx.lineTo(30, 18); ctx.closePath(); ctx.fill(); outline(ctx, 3); ctx.stroke();
+  ctx.strokeStyle = '#e8b34b'; ctx.lineWidth = 4;
+  for (const dir of [-10, 10]) { ctx.beginPath(); ctx.moveTo(dir, 46); ctx.lineTo(dir, 56 - hop); ctx.stroke(); }
+  eye(ctx, 12, 0, 7, color, pos === 'hurt' ? 1 : 0);
+  if (pos === 'defeat') { ctx.strokeStyle = '#0a0c0a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-20, -20); ctx.lineTo(-8, -8); ctx.moveTo(-8, -20); ctx.lineTo(-20, -8); ctx.stroke(); }
+  ctx.restore();
+}
+export function drawThornback(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Verdant) {
+  const droop = pos === 'defeat' ? 12 : 0;
+  ctx.save(); ctx.translate(cx, cy + droop);
+  // low bramble shell
+  ctx.fillStyle = bodyGrad(ctx, 0, 16, 66, color);
+  ctx.beginPath(); ctx.ellipse(0, 20, 52, 30, 0, 0, 7); ctx.fill(); outline(ctx); ctx.stroke();
+  // thorns along the ridge
+  ctx.fillStyle = '#d8e3b0';
+  for (let i = -3; i <= 3; i++) {
+    const tx = i * 14, ty = 20 - Math.sqrt(Math.max(0, 1 - (tx / 52) ** 2)) * 30;
+    ctx.beginPath(); ctx.moveTo(tx - 5, ty); ctx.lineTo(tx, ty - 18 - (pos === 'hurt' ? 4 : 0)); ctx.lineTo(tx + 5, ty); ctx.closePath(); ctx.fill(); outline(ctx, 3); ctx.stroke();
+  }
+  // peeking face
+  eye(ctx, -34, 18, 6, color, 0); eye(ctx, -20, 18, 6, color, 0);
+  ctx.fillStyle = '#0a0c0a'; ctx.beginPath(); ctx.arc(-27, 30, 4, 0, 7); ctx.fill();
+  ctx.restore();
+}
+export function drawStormpup(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Volt) {
+  const bounce = pos === 'defeat' ? 16 : Math.abs(Math.sin(t * 5)) * 5;
+  ctx.save(); ctx.translate(cx, cy - bounce);
+  // body + curled tail of static
+  ctx.fillStyle = bodyGrad(ctx, 0, 14, 60, { main: '#9fb4d8', glow: '#eaf2ff', dark: '#43567c' });
+  ctx.beginPath(); ctx.ellipse(4, 20, 44, 30, 0, 0, 7); ctx.fill(); outline(ctx); ctx.stroke();
+  ctx.strokeStyle = color.main; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(-38, 8); ctx.quadraticCurveTo(-58, -10, -46 + sway(t) * 4, -26); ctx.stroke();
+  // head + ears
+  ctx.fillStyle = bodyGrad(ctx, 30, -8, 50, { main: '#9fb4d8', glow: '#eaf2ff', dark: '#43567c' });
+  ctx.beginPath(); ctx.arc(30, -8, 26, 0, 7); ctx.fill(); outline(ctx); ctx.stroke();
+  for (const d of [-1, 1]) {
+    ctx.fillStyle = color.dark;
+    ctx.beginPath(); ctx.moveTo(24 + d * 12, -28); ctx.lineTo(24 + d * 20, -52 + bounce); ctx.lineTo(24 + d * 2, -32); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  eye(ctx, 26, -10, 6.5, color, pos === 'hurt' ? 1 : 0); eye(ctx, 42, -10, 6.5, color, pos === 'hurt' ? 1 : 0);
+  // spark collar
+  ctx.fillStyle = color.glow; ctx.shadowColor = color.main; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(14, 14, 4, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.restore();
+}
+export function drawPeblite(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Volt) {
+  const wobble = pos === 'defeat' ? 0 : sway(t) * 0.06;
+  ctx.save(); ctx.translate(cx, cy + (pos === 'defeat' ? 16 : 0)); ctx.rotate(wobble);
+  // pebble body
+  ctx.fillStyle = bodyGrad(ctx, 0, 8, 60, { main: '#8d97a5', glow: '#dfe6ef', dark: '#3d444d' });
+  ctx.beginPath(); ctx.ellipse(0, 10, 42, 36, 0.15, 0, 7); ctx.fill(); outline(ctx); ctx.stroke();
+  // crack seams glowing static
+  ctx.strokeStyle = color.main; ctx.lineWidth = 3.5; ctx.shadowColor = color.glow; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.moveTo(-18, -8); ctx.lineTo(-4, 6); ctx.lineTo(-10, 22); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(14, -12); ctx.lineTo(22, 4); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // stubby legs
+  ctx.fillStyle = '#5a626d';
+  for (const dir of [-14, 14]) { ctx.beginPath(); ctx.ellipse(dir, 46, 9, 5, 0, 0, 7); ctx.fill(); }
+  eye(ctx, -10, -2, 6.5, color, pos === 'hurt' ? 1 : 0); eye(ctx, 12, -4, 6.5, color, pos === 'hurt' ? 1 : 0);
+  ctx.restore();
+}
+export function drawFrostcap(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Tide) {
+  const droop = pos === 'defeat' ? 14 : 0;
+  ctx.save(); ctx.translate(cx, cy + droop);
+  // stem
+  ctx.fillStyle = bodyGrad(ctx, 0, 24, 46, { main: '#eef6f8', glow: '#ffffff', dark: '#b8ccd4' });
+  ctx.beginPath(); ctx.moveTo(-14, 46); ctx.quadraticCurveTo(-10, 10, -12, 2); ctx.lineTo(12, 2); ctx.quadraticCurveTo(10, 10, 14, 46); ctx.closePath(); ctx.fill(); outline(ctx); ctx.stroke();
+  // icy cap
+  ctx.fillStyle = bodyGrad(ctx, 0, -14, 66, color);
+  ctx.beginPath(); ctx.ellipse(0, -12, 42, 26 + droop * 0.3, 0, Math.PI, 7); ctx.quadraticCurveTo(0, 12 - droop, -42, -12); ctx.fill(); outline(ctx); ctx.stroke();
+  // frost speckles
+  ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.85;
+  for (const [fx, fy] of [[-20, -20], [6, -28], [22, -14], [-6, -10]]) { ctx.beginPath(); ctx.arc(fx, fy, 3, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  eye(ctx, -9, 18, 5.5, color, 0); eye(ctx, 9, 18, 5.5, color, 0);
+  // cold tear
+  const tp = (t * 26) % 30;
+  ctx.fillStyle = color.glow; ctx.beginPath(); ctx.arc(-9, 26 + tp, 2.5, 0, 7); ctx.fill();
+  ctx.restore();
+}
+export function drawDuskfin(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Tide) {
+  const swim = pos === 'defeat' ? 18 : Math.sin(t * 3) * 5;
+  ctx.save(); ctx.translate(cx, cy + swim);
+  // crescent body
+  ctx.fillStyle = bodyGrad(ctx, 0, 6, 60, { main: '#5a86b8', glow: '#bcd9f2', dark: '#243c5c' });
+  ctx.beginPath(); ctx.ellipse(4, 6, 46, 24, -0.12, 0, 7); ctx.fill(); outline(ctx); ctx.stroke();
+  // dusk tail-fin
+  ctx.fillStyle = color.main;
+  ctx.beginPath(); ctx.moveTo(-38, 6); ctx.quadraticCurveTo(-64, -20 + sway(t) * 6, -70, 4); ctx.quadraticCurveTo(-64, 26, -38, 12); ctx.closePath(); ctx.fill(); outline(ctx, 4); ctx.stroke();
+  // dorsal fin
+  ctx.beginPath(); ctx.moveTo(-2, -16); ctx.quadraticCurveTo(14, -40 - (pos === 'defeat' ? 0 : sway(t) * 4), 26, -12); ctx.closePath(); ctx.fill(); ctx.stroke();
+  eye(ctx, 30, 0, 7, color, pos === 'hurt' ? 1 : 0);
+  // bubble trail
+  ctx.fillStyle = 'rgba(220,240,255,.6)';
+  for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(48 + i * 8, -6 - ((t * 18 + i * 9) % 22), 2.5 + i, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+export function drawGloomling(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Gloom) {
+  const creep = pos === 'defeat' ? 20 : sway(t * 1.5) * 4;
+  ctx.save(); ctx.translate(cx, cy);
+  // amorphous shadow blob with wobbling base
+  ctx.fillStyle = bodyGrad(ctx, 0, 4, 56, { main: '#3a2c50', glow: '#8f6fc0', dark: '#14101f' });
+  ctx.beginPath();
+  ctx.moveTo(-34, 34);
+  ctx.quadraticCurveTo(-40 + creep, 0, -18, -22);
+  ctx.quadraticCurveTo(0, -38 - creep * 0.4, 18, -22);
+  ctx.quadraticCurveTo(40 + creep, 0, 34, 34);
+  for (let i = 0; i < 4; i++) ctx.quadraticCurveTo(20 - i * 18 + Math.sin(t * 4 + i) * 4, 44, -14 - i * 8, 34);
+  ctx.closePath(); ctx.fill(); outline(ctx); ctx.stroke();
+  eye(ctx, -11, -6, 7, color, 0); eye(ctx, 11, -6, 7, color, 0);
+  // tiny mushroom-cap it fell from
+  ctx.fillStyle = color.dark;
+  ctx.beginPath(); ctx.ellipse(0, -30, 16, 7, sway(t) * 0.1, Math.PI, 7); ctx.fill(); outline(ctx, 3); ctx.stroke();
+  if (pos === 'defeat') { ctx.strokeStyle = '#cfd4e8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-18, 30); ctx.lineTo(-10, 40); ctx.moveTo(12, 34); ctx.lineTo(20, 42); ctx.stroke(); }
+  ctx.restore();
+}
 
 export function drawCreature(ctx, speciesId, cx, cy, t, pos) {
   const fn = SPECIES_ART[speciesId] || drawGloomcap;

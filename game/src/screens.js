@@ -88,7 +88,7 @@ export function drawCodex(ctx, team, t) {
   centerText(ctx, '◈ THE VERDANT CODEX ◈', VIEW_W / 2, 54, 'bold 30px monospace', PALETTE.paper);
   centerText(ctx, `${team.dexCaught.size} bound · ${team.dexSeen.size} sighted — seen in battle, captured with Seedstones`, VIEW_W / 2, 80, '14px monospace', '#9fb8a6');
 
-  const cols = 4, cellW = 262, cellH = 148, gx = 40, gy = 112;
+  const cols = 4, cellW = 262, cellH = 133, gx = 40, gy = 108;
   SPECIES_LIST.forEach((id, i) => {
     const sp = SPECIES[id];
     const x = gx + (i % cols) * cellW, y = gy + Math.floor(i / cols) * cellH;
