@@ -72,7 +72,9 @@ export const PLAYER_SHEET = 'player_boy_128x256.png';
 export function drawSheet(ctx, file, dir, frame, cx, groundY, height, flipX = false) {
   const img = image(file);
   if (!img || !img.naturalWidth) return false;
-  const fw = img.naturalWidth / 12, fh = img.naturalHeight / 4;
+  // cell size from filename (<w>x<h>); Muse sheets are 4x4 of 128x256 => 384x1024
+  const m = file.match(/(\d+)x(\d+)\.png/);
+  const fw = m ? +m[1] : img.naturalWidth / 12, fh = m ? +m[2] : img.naturalHeight / 4;
   const w = height * (fw / fh);
   ctx.save();
   ctx.translate(cx, groundY);

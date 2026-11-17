@@ -351,8 +351,8 @@ function settleMission(b, wasBoss, mission) {
 function worldMessage(text) { state.world.setNotice(text); }
 
 function respawnInMeadow() {
-  state.world.zoneId = 'moss';
-  state.world.px = 3; state.world.py = 13;
+  state.world.zoneId = 'town';
+  state.world.px = 7; state.world.py = 18;
   state.team.healPartyHalf();
   state.mode = 'field';
   state.world.setNotice('You wake in Moss Meadow, humbled');
