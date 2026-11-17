@@ -1,10 +1,10 @@
 // hud.js — in-game overlay panels drawn on the canvas: field status (zone,
 // party hearts, items, mission tracker) and the battle HUD (HP bars, levels,
 // XP, action wheel, message log).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=7';
-import { SPECIES, MOVES } from './data.js?v=7';
-import { MISSIONS } from './data.js?v=7';
-import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=7';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=8';
+import { SPECIES, MOVES } from './data.js?v=8';
+import { MISSIONS } from './data.js?v=8';
+import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=8';
 
 export function panel(ctx, x, y, w, h, alpha = 0.92) {
   if (drawSlice(ctx, 'hud_panel', x, y, w, h, 24, alpha)) return;
@@ -16,6 +16,13 @@ export function panel(ctx, x, y, w, h, alpha = 0.92) {
   roundRect(ctx, x, y, w, h, 14); ctx.stroke();
   ctx.globalAlpha = 1;
   ctx.restore();
+}
+
+// HUD01 skin: named slice with per-asset margin (measured from the PNGs, not spec).
+const SLICE_M = { field_hud: 22, enemy_card: 6, player_creature_card: 14, message_log: 5 };
+function artPanel(ctx, name, x, y, w, h, alpha = 0.92) {
+  if (drawSlice(ctx, name, x, y, w, h, SLICE_M[name], alpha)) return;
+  panel(ctx, x, y, w, h, alpha);
 }
 
 // Muse watercolor UI assets, lazy-loaded; false = missing -> procedural fallback.
@@ -96,7 +103,7 @@ function elementChip(ctx, x, y, element, text) {
 export function drawFieldHud(ctx, state, t) {
   const { world, team } = state;
   // top-left: zone + timer
-  panel(ctx, 14, 12, 330, 78);
+  artPanel(ctx, 'field_hud', 14, 12, 330, 78);
   ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 21px monospace'; ctx.textAlign = 'left';
   const zoneNames = { town: 'Leafpine Village', route: 'Old Root Road', forest: 'Deepfern Hollow', cave: 'Glimmerdeep Cave' };
   ctx.fillText(zoneNames[world.zoneId] || 'Moss Meadow', 30, 40);
@@ -106,7 +113,7 @@ export function drawFieldHud(ctx, state, t) {
 
   // top-right: party
   const px = VIEW_W - 292;
-  panel(ctx, px, 12, 278, 40 + team.party.length * 40);
+  artPanel(ctx, 'field_hud', px, 12, 278, 40 + team.party.length * 40);
   team.party.forEach((c, i) => {
     const y = 40 + i * 40;
     const sp = SPECIES[c.species];
@@ -118,7 +125,7 @@ export function drawFieldHud(ctx, state, t) {
   });
 
   // bottom-left: items + mission tracker
-  panel(ctx, 14, VIEW_H - 148, 360, 134);
+  artPanel(ctx, 'field_hud', 14, VIEW_H - 148, 360, 134);
   drawSeedstoneIcon(ctx, 44, VIEW_H - 112, 22, t);
   ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 17px monospace';
   ctx.fillText(`× ${team.seedstones}`, 66, VIEW_H - 106);
@@ -169,7 +176,7 @@ export function drawHudButton(ctx, x, y, w, h, label, hot = false) {
 export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   const enemySp = SPECIES[battle.enemy.species];
   // enemy card
-  panel(ctx, 60, 34, 420, 96);
+  artPanel(ctx, 'enemy_card', 60, 34, 420, 96);
   ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
   ctx.fillText(`${enemySp.name}${battle.kind === 'boss' ? ' ‹TRIBUS›' : ''}`, 78, 62);
   ctx.font = '13px monospace'; ctx.fillStyle = '#9fb8a6';
@@ -181,7 +188,7 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
 
   // player card
   const pSp = SPECIES[battle.player.species];
-  panel(ctx, VIEW_W - 480, 470, 420, 118);
+  artPanel(ctx, 'player_creature_card', VIEW_W - 480, 470, 420, 118);
   ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 20px monospace';
   ctx.fillText(`${battle.player.nickname}`, VIEW_W - 462, 498);
   ctx.font = '13px monospace'; ctx.fillStyle = '#9fb8a6';
@@ -217,7 +224,7 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   }
 
   // message log
-  panel(ctx, 520, 168, 660, 112, 0.9);
+  artPanel(ctx, 'message_log', 520, 168, 660, 112, 0.9);
   ctx.font = '15px monospace';
   const lines = battle.log.slice(-4);
   lines.forEach((l, i) => {
