@@ -9,7 +9,8 @@ import { startBattle } from './battle.js';
 import { drawField, drawBattle, Particles, battleAnchors } from './render.js';
 import { drawFieldHud, panel } from './hud.js';
 import { PALETTE } from './config.js';
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js';
+// ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=4';
 import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js';
 import { saveGame, loadGame, canSave } from './save.js';
 
