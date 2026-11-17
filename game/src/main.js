@@ -1,7 +1,7 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
 import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js';
-import { SPECIES, MISSIONS } from './data.js';
+import { SPECIES, MISSIONS, matchup } from './data.js';
 import { Input } from './input.js';
 import { World } from './world.js';
 import { TeamManager, makeCreature } from './team.js';
