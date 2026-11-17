@@ -267,10 +267,18 @@ function battleMenuButtons(b) {
     btns.push({ id: 'back', x: 700, y: y0 + 56, w: 140, h: 46, label: 'back' });
     return btns;
   }
-  // switch menu: party slots that are alive and not active
+  // switch menu: party slots that are alive and not active; star = type advantage vs enemy
+  const enemyEl = SPECIES[b.enemy.species].element;
+  const bestIdx = state.team.party.reduce((best, c, i) => {
+    if (c.hp <= 0 || c === b.player) return best;
+    const score = Math.max(...c.moves.map(m => {
+      const mv = MOVES_TABLE[m.key]; return mv ? matchup(SPECIES[c.species].element, enemyEl) * (mv.power || 30) : 0;
+    }));
+    return (!best || score > best.score) ? { i, score } : best;
+  }, null);
   const btns = state.team.party.map((c, i) => ({
     id: 'switch:' + i, x: x0 + i * 190, y: y0 + 28, w: 176, h: 46,
-    label: c.hp > 0 ? `${c.nickname} L${c.level}` : 'fainted',
+    label: c.hp > 0 ? (bestIdx && bestIdx.i === i ? `${c.nickname} L${c.level} *` : `${c.nickname} L${c.level}`) : 'fainted',
   }));
   btns.push({ id: 'back', x: x0 + 3 * 190, y: y0 + 28, w: 140, h: 46, label: 'back' });
   return btns;
