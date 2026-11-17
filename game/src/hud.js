@@ -1,10 +1,10 @@
 // hud.js — in-game overlay panels drawn on the canvas: field status (zone,
 // party hearts, items, mission tracker) and the battle HUD (HP bars, levels,
 // XP, action wheel, message log).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=9';
-import { SPECIES, MOVES } from './data.js?v=9';
-import { MISSIONS } from './data.js?v=9';
-import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=9';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=10';
+import { SPECIES, MOVES } from './data.js?v=10';
+import { MISSIONS } from './data.js?v=10';
+import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=10';
 
 export function panel(ctx, x, y, w, h, alpha = 0.92) {
   if (drawSlice(ctx, 'hud_panel', x, y, w, h, 24, alpha)) return;
@@ -182,10 +182,11 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   ctx.fillStyle = INK; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
   ctx.fillText(`${enemySp.name}${battle.kind === 'boss' ? ' ‹TRIBUS›' : ''}`, 78, 62);
   ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
-  ctx.fillText(`Lv ${battle.enemy.level} · ${enemySp.element}`, 78, 84);
-  hpBar(ctx, 78, 96, 350, 14, battle.enemy.hp / battle.enemy.stats.hp);
+  ctx.fillText(`Lv ${battle.enemy.level} · ${enemySp.element}`, 78, 82);
+  hpBar(ctx, 78, 92, 300, 14, battle.enemy.hp / battle.enemy.stats.hp);
+  // HP numbers beside the bar (was: drawn on top of it — QA defect)
   ctx.fillStyle = INK; ctx.font = '12px monospace'; ctx.textAlign = 'right';
-  ctx.fillText(`${battle.enemy.hp}/${battle.enemy.stats.hp}`, 462, 92);
+  ctx.fillText(`${battle.enemy.hp}/${battle.enemy.stats.hp}`, 462, 103);
   ctx.textAlign = 'left';
 
   // player card
@@ -194,15 +195,17 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   ctx.fillStyle = INK; ctx.font = 'bold 20px monospace';
   ctx.fillText(`${battle.player.nickname}`, VIEW_W - 462, 498);
   ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
-  ctx.fillText(`Lv ${battle.player.level} · ${pSp.element} · focus ${battle.player.focused ? 'ON' : 'off'}`, VIEW_W - 462, 520);
-  hpBar(ctx, VIEW_W - 462, 532, 320, 14, battle.player.hp / battle.player.stats.hp);
+  ctx.fillText(`Lv ${battle.player.level} · ${pSp.element} · focus ${battle.player.focused ? 'ON' : 'off'}`, VIEW_W - 462, 518);
+  hpBar(ctx, VIEW_W - 462, 526, 268, 14, battle.player.hp / battle.player.stats.hp);
+  // HP numbers beside the bar (was: drawn on top of it — QA defect)
   ctx.fillStyle = INK; ctx.font = '12px monospace'; ctx.textAlign = 'right';
-  ctx.fillText(`${battle.player.hp}/${battle.player.stats.hp}`, VIEW_W - 148, 528);
+  ctx.fillText(`${battle.player.hp}/${battle.player.stats.hp}`, VIEW_W - 148, 537);
+  ctx.textAlign = 'left';
   // xp bar
-  ctx.fillStyle = '#0a0f0a'; roundRect(ctx, VIEW_W - 462, 556, 320, 8, 4); ctx.fill();
-  ctx.fillStyle = '#6fa8ff'; roundRect(ctx, VIEW_W - 462, 556, Math.max(8, 320 * (battle.player.xp / battle.player.xpNext)), 8, 4); ctx.fill();
+  ctx.fillStyle = '#0a0f0a'; roundRect(ctx, VIEW_W - 462, 548, 268, 8, 4); ctx.fill();
+  ctx.fillStyle = '#6fa8ff'; roundRect(ctx, VIEW_W - 462, 548, Math.max(8, 268 * (battle.player.xp / battle.player.xpNext)), 8, 4); ctx.fill();
   ctx.font = '11px monospace'; ctx.fillStyle = INK_SUB; ctx.textAlign = 'left';
-  ctx.fillText(`XP ${battle.player.xp}/${battle.player.xpNext}`, VIEW_W - 462, 580);
+  ctx.fillText(`XP ${battle.player.xp}/${battle.player.xpNext}`, VIEW_W - 462, 572);
   ctx.textAlign = 'left';
 
   // party pips
