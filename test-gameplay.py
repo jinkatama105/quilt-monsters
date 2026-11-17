@@ -89,19 +89,40 @@ try:
             check(page.evaluate("__vs.mode") == "field", "C closes codex")
 
         # --- hidden item pickup via real mouse click (ranger mid-map so camera is unclamped)
-        page.evaluate("""() => {
-          const st = __vs;
-          st.world.zoneId = 'cliff';
-          st.world.px = 20; st.world.py = 13; st.world.moving = 0;
-          st.world.items = [{x: 21, y: 13, kind: 'seedstone', bob: 0}];
-        }""")
+        # wait until the field loop accepts input again (battle exit may still hold busy)
+        for _ in range(10):
+            ready = page.evaluate("""() => {
+              const st = __vs;
+              if (st.mode !== 'field' || st.busy > 0 || st.fade) return false;
+              st.world.zoneId = 'cliff';
+              st.world.px = 20; st.world.py = 13; st.world.moving = 0;
+              st.world.items = [{x: 21, y: 13, kind: 'seedstone', bob: 0}];
+              return true;
+            }""")
+            if ready: break
+            page.wait_for_timeout(400)
         before = page.evaluate("__vs.team.seedstones")
         camX = 20*40 + 20 - 640; camY = 13*40 + 20 - 400
         sx = 21*40 + 20 - camX; sy = 13*40 + 20 - camY
-        page.mouse.click(sx, sy)
-        page.wait_for_timeout(400)
+        got = False
+        for _ in range(5):
+            page.mouse.click(sx, sy)
+            page.wait_for_timeout(350)
+            if page.evaluate("__vs.team.seedstones") > before:
+                got = True
+                break
+            # re-arm in case a stray encounter consumed the item placement
+            page.evaluate("""() => {
+              const st = __vs;
+              if (st.mode === 'field') {
+                st.world.zoneId = 'cliff'; st.world.px = 20; st.world.py = 13; st.world.moving = 0;
+                st.world.items = [{x: 21, y: 13, kind: 'seedstone', bob: 0}];
+              }
+            }""")
+            if page.evaluate("__vs.mode") != "field":
+                page.keyboard.press("Escape"); page.wait_for_timeout(1200)
         picked2 = page.evaluate("__vs.team.seedstones")
-        check(picked2 > before, f"clicked sparkle granted seedstone ({before}->{picked2})")
+        check(got, f"clicked sparkle granted seedstone ({before}->{picked2})")
 
         # --- defeat path: wipe party
         page.evaluate("""() => {
