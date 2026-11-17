@@ -11,11 +11,11 @@ import { mulberry32, pickWeighted, roll, rint } from './random.js';
 export { T } from './config.js';
 
 const ZDEF = {
-  town:     { map: 'town_map_480x320.png',      encounter: false, name: 'Verdant Town' },
-  route:    { map: 'route1_map_640x240.png',    encounter: true,  wild: 'moss',  name: 'Route 1' },
-  forest:   { map: 'forest_map_480x480.png',    encounter: true,  wild: 'moss',  name: 'Whisper Forest' },
-  cave:     { map: 'cave_map_400x400.png',      encounter: true,  wild: 'cliff', name: 'Cinder Cave' },
-  interior: { map: 'house_interior_256x192.png', encounter: false, name: 'Home' },
+  town:     { map: 'ghibli-map-town.png',      encounter: false, name: 'Verdant Town' },
+  route:    { map: 'ghibli-map-route1.png',    encounter: true,  wild: 'moss',  name: 'Route 1' },
+  forest:   { map: 'ghibli-map-forest.png',    encounter: true,  wild: 'moss',  name: 'Whisper Forest' },
+  cave:     { map: 'ghibli-map-cave.png',      encounter: true,  wild: 'cliff', name: 'Cinder Cave' },
+  interior: { map: 'ghibli-map-interior.png', encounter: false, name: 'Home' },
 };
 export const MAPS = ZDEF;   // render.js reads .map per zone
 

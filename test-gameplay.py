@@ -23,8 +23,11 @@ try:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1280, "height": 800})
-        page.on("pageerror", lambda e: errors.append(str(e)))
-        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        def _pageerr(e):
+            errors.append(str(e))
+            print("PAGEERR:", (e.stack or str(e))[:400])
+        page.on("pageerror", _pageerr)
+        page.on("console", lambda m: (errors.append(m.text), print("CONSOLEERR:", m.text[:200], getattr(m,"location",None))) if m.type == "error" else None)
 
         # --- title -> field via Enter
         page.goto(BASE)
