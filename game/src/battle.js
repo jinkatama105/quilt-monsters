@@ -1,9 +1,9 @@
 // battle.js — the turn-based battle engine: initiative, moves, accuracy, type
 // matchups, drains/focus, AI choices, capture, flee, xp and mission resolution.
-import { SPECIES, MOVES, matchup } from './data.js?v=5';
-import { FLEE_BASE } from './config.js?v=5';
-import { makeCreature, giveXp, attemptCapture } from './team.js?v=5';
-import { roll, rint } from './random.js?v=5';
+import { SPECIES, MOVES, matchup } from './data.js?v=6';
+import { FLEE_BASE } from './config.js?v=6';
+import { makeCreature, giveXp, attemptCapture } from './team.js?v=6';
+import { roll, rint } from './random.js?v=6';
 
 export class Battle {
   /** kind: 'wild' | 'boss' ; mission is set for boss battles. */
