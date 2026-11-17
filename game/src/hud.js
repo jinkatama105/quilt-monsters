@@ -1,10 +1,10 @@
 // hud.js — in-game overlay panels drawn on the canvas: field status (zone,
 // party hearts, items, mission tracker) and the battle HUD (HP bars, levels,
 // XP, action wheel, message log).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=8';
-import { SPECIES, MOVES } from './data.js?v=8';
-import { MISSIONS } from './data.js?v=8';
-import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=8';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=9';
+import { SPECIES, MOVES } from './data.js?v=9';
+import { MISSIONS } from './data.js?v=9';
+import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=9';
 
 export function panel(ctx, x, y, w, h, alpha = 0.92) {
   if (drawSlice(ctx, 'hud_panel', x, y, w, h, 24, alpha)) return;
@@ -20,6 +20,8 @@ export function panel(ctx, x, y, w, h, alpha = 0.92) {
 
 // HUD01 skin: named slice with per-asset margin (measured from the PNGs, not spec).
 const SLICE_M = { field_hud: 22, enemy_card: 6, player_creature_card: 14, message_log: 5 };
+// HUD01 panels are LIGHT parchment -> dark ink text (light-on-light was the QA defect).
+const INK = '#3b2c17', INK_SUB = '#6d5b3c';
 function artPanel(ctx, name, x, y, w, h, alpha = 0.92) {
   if (drawSlice(ctx, name, x, y, w, h, SLICE_M[name], alpha)) return;
   panel(ctx, x, y, w, h, alpha);
@@ -93,10 +95,10 @@ export function hpBar(ctx, x, y, w, h, frac) {
   }
 }
 
-function elementChip(ctx, x, y, element, text) {
+function elementChip(ctx, x, y, element, text, ink = false) {
   const c = ELEMENT_COLORS[element];
   ctx.font = 'bold 13px monospace'; ctx.textAlign = 'left';
-  ctx.fillStyle = c.main; ctx.fillText(`◈ ${text}`, x, y);
+  ctx.fillStyle = ink ? INK : c.main; ctx.fillText(`${ink ? '' : '◈ '}${text}`, x, y);
 }
 
 // ---------------------------------------------------------------- field HUD
@@ -104,10 +106,10 @@ export function drawFieldHud(ctx, state, t) {
   const { world, team } = state;
   // top-left: zone + timer
   artPanel(ctx, 'field_hud', 14, 12, 330, 78);
-  ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 21px monospace'; ctx.textAlign = 'left';
+  ctx.fillStyle = INK; ctx.font = 'bold 21px monospace'; ctx.textAlign = 'left';
   const zoneNames = { town: 'Leafpine Village', route: 'Old Root Road', forest: 'Deepfern Hollow', cave: 'Glimmerdeep Cave' };
   ctx.fillText(zoneNames[world.zoneId] || 'Moss Meadow', 30, 40);
-  ctx.font = '14px monospace'; ctx.fillStyle = '#9fb8a6';
+  ctx.font = '14px monospace'; ctx.fillStyle = INK_SUB;
   const mins = Math.floor(state.stats.time / 60), secs = Math.floor(state.stats.time % 60);
   ctx.fillText(`steps ${world.steps} · ${mins}:${String(secs).padStart(2, '0')} · encounters ${state.stats.encounters}`, 30, 66);
 
@@ -117,9 +119,9 @@ export function drawFieldHud(ctx, state, t) {
   team.party.forEach((c, i) => {
     const y = 40 + i * 40;
     const sp = SPECIES[c.species];
-    elementChip(ctx, px + 16, y + 12, sp.element, `${c.nickname} L${c.level}`);
+    elementChip(ctx, px + 16, y + 12, sp.element, `${c.nickname} L${c.level}`, true);
     hpBar(ctx, px + 16, y + 18, 200, 10, c.hp / c.stats.hp);
-    ctx.fillStyle = '#cfe3d2'; ctx.font = '12px monospace'; ctx.textAlign = 'right';
+    ctx.fillStyle = INK; ctx.font = '12px monospace'; ctx.textAlign = 'right';
     ctx.fillText(`${c.hp}/${c.stats.hp}`, px + 262, y + 27);
     ctx.textAlign = 'left';
   });
@@ -127,16 +129,16 @@ export function drawFieldHud(ctx, state, t) {
   // bottom-left: items + mission tracker
   artPanel(ctx, 'field_hud', 14, VIEW_H - 148, 360, 134);
   drawSeedstoneIcon(ctx, 44, VIEW_H - 112, 22, t);
-  ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 17px monospace';
+  ctx.fillStyle = INK; ctx.font = 'bold 17px monospace';
   ctx.fillText(`× ${team.seedstones}`, 66, VIEW_H - 106);
   drawPotionIcon(ctx, 150, VIEW_H - 112, 22);
   ctx.fillText(`× ${team.potions}`, 172, VIEW_H - 106);
-  ctx.font = '14px monospace'; ctx.fillStyle = '#9fb8a6';
+  ctx.font = '14px monospace'; ctx.fillStyle = INK_SUB;
   ctx.fillText('Codex: press C or click [C]', 220, VIEW_H - 106);
   let my = VIEW_H - 78;
   for (const m of MISSIONS) {
     const done = world.bossDefeated[m.zone];
-    ctx.fillStyle = done ? PALETTE.hpGood : '#cfe3d2';
+    ctx.fillStyle = done ? '#2e7d32' : INK;
     ctx.fillText(`${done ? '✔' : '○'} ${m.name}`, 30, my);
     my += 22;
   }
@@ -177,29 +179,29 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   const enemySp = SPECIES[battle.enemy.species];
   // enemy card
   artPanel(ctx, 'enemy_card', 60, 34, 420, 96);
-  ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
+  ctx.fillStyle = INK; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
   ctx.fillText(`${enemySp.name}${battle.kind === 'boss' ? ' ‹TRIBUS›' : ''}`, 78, 62);
-  ctx.font = '13px monospace'; ctx.fillStyle = '#9fb8a6';
+  ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
   ctx.fillText(`Lv ${battle.enemy.level} · ${enemySp.element}`, 78, 84);
   hpBar(ctx, 78, 96, 350, 14, battle.enemy.hp / battle.enemy.stats.hp);
-  ctx.fillStyle = '#cfe3d2'; ctx.font = '12px monospace'; ctx.textAlign = 'right';
+  ctx.fillStyle = INK; ctx.font = '12px monospace'; ctx.textAlign = 'right';
   ctx.fillText(`${battle.enemy.hp}/${battle.enemy.stats.hp}`, 462, 92);
   ctx.textAlign = 'left';
 
   // player card
   const pSp = SPECIES[battle.player.species];
   artPanel(ctx, 'player_creature_card', VIEW_W - 480, 470, 420, 118);
-  ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 20px monospace';
+  ctx.fillStyle = INK; ctx.font = 'bold 20px monospace';
   ctx.fillText(`${battle.player.nickname}`, VIEW_W - 462, 498);
-  ctx.font = '13px monospace'; ctx.fillStyle = '#9fb8a6';
+  ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
   ctx.fillText(`Lv ${battle.player.level} · ${pSp.element} · focus ${battle.player.focused ? 'ON' : 'off'}`, VIEW_W - 462, 520);
   hpBar(ctx, VIEW_W - 462, 532, 320, 14, battle.player.hp / battle.player.stats.hp);
-  ctx.fillStyle = '#cfe3d2'; ctx.font = '12px monospace'; ctx.textAlign = 'right';
+  ctx.fillStyle = INK; ctx.font = '12px monospace'; ctx.textAlign = 'right';
   ctx.fillText(`${battle.player.hp}/${battle.player.stats.hp}`, VIEW_W - 148, 528);
   // xp bar
   ctx.fillStyle = '#0a0f0a'; roundRect(ctx, VIEW_W - 462, 556, 320, 8, 4); ctx.fill();
   ctx.fillStyle = '#6fa8ff'; roundRect(ctx, VIEW_W - 462, 556, Math.max(8, 320 * (battle.player.xp / battle.player.xpNext)), 8, 4); ctx.fill();
-  ctx.font = '11px monospace'; ctx.fillStyle = '#9fb8a6'; ctx.textAlign = 'left';
+  ctx.font = '11px monospace'; ctx.fillStyle = INK_SUB; ctx.textAlign = 'left';
   ctx.fillText(`XP ${battle.player.xp}/${battle.player.xpNext}`, VIEW_W - 462, 580);
   ctx.textAlign = 'left';
 
@@ -223,12 +225,12 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
     }
   }
 
-  // message log
-  artPanel(ctx, 'message_log', 520, 168, 660, 112, 0.9);
+  // message log — pushed below the enemy sprite head (was overlapping it at y=168)
+  artPanel(ctx, 'message_log', 520, 220, 660, 112, 0.92);
   ctx.font = '15px monospace';
   const lines = battle.log.slice(-4);
   lines.forEach((l, i) => {
-    ctx.fillStyle = i === lines.length - 1 ? PALETTE.paper : '#8ba593';
-    ctx.fillText(l.text.slice(0, 74), 540, 196 + i * 24);
+    ctx.fillStyle = i === lines.length - 1 ? INK : INK_SUB;
+    ctx.fillText(l.text.slice(0, 74), 540, 248 + i * 24);
   });
 }
