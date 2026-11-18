@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.join(HERE, "game")
 PORT = 8796
-BASE = f"http://127.0.0.1:{PORT}/index.html"
+BASE = f"http://127.0.0.1:{PORT}/index.html?road=1"
 
 server = subprocess.Popen([sys.executable, "-m", "http.server", str(PORT), "--directory", GAME],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -29,10 +29,10 @@ try:
         page.evaluate("localStorage.clear()")
         page.keyboard.press("Enter")
         page.wait_for_timeout(400)
-        check(page.evaluate("__vs.mode") == "field", "field mode")
+        check(page.evaluate("__vs.mode") in ("field", "road"), "play shell active")
 
         # start a showdown wild battle (3-5 foes)
-        page.evaluate("__vsHooks.startEncounterBattle(__vsHooks.makeCreature('mossbeak', 6), 'wild')")
+        page.evaluate("__vs._draftDone=true; __vsHooks.startEncounterBattle(__vsHooks.makeCreature('mossbeak', 6), 'wild')")
         page.wait_for_timeout(300)
         b = page.evaluate("(()=>{const s=__vs.battle;return s?{isSD:!!s.isShowdown,phase:s.phase,pu:s.squad('player').length,eu:s.squad('enemy').length}:null})()")
         check(b and b["isSD"], "battle is a Showdown")
@@ -63,7 +63,7 @@ try:
             check(page.evaluate("__vs.mode") in ("field", "defeat", "victory"), f"continues to {page.evaluate('__vs.mode')}")
 
         # capture path: fresh game, spam capture with seedstones
-        page.evaluate("__vsHooks.newGame(); __vs.team.seedstones=30; __vsHooks.startEncounterBattle(__vsHooks.makeCreature('tidrel',3),'wild')")
+        page.evaluate("__vsHooks.newGame(); __vs._draftDone=true; __vs.team.seedstones=30; __vsHooks.startEncounterBattle(__vsHooks.makeCreature('tidrel',3),'wild')")
         page.wait_for_timeout(2300)
         for _ in range(6):
             page.mouse.click(1280-190+85, 800-66+23)
@@ -74,7 +74,7 @@ try:
 
         # pause works
         page.evaluate("__vsHooks.newGame()")
-        page.evaluate("__vsHooks.startEncounterBattle(__vsHooks.makeCreature('voltip',3),'wild')")
+        page.evaluate("__vs._draftDone=true; __vsHooks.startEncounterBattle(__vsHooks.makeCreature('voltip',3),'wild')")
         page.wait_for_timeout(2300)
         page.mouse.click(1280/2 - 74, 34)
         t1 = page.evaluate("__vs.battle.time")

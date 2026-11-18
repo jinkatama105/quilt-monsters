@@ -1,9 +1,10 @@
 // save.js — localStorage autosave that degrades gracefully when storage is
 // blocked (private mode, sandboxed iframes): every call is wrapped, nothing
 // outside the save format may throw.
-import { SPECIES } from './data.js?v=16';
-import { TeamManager } from './team.js?v=16';
-import { World } from './world.js?v=16';
+import { SPECIES } from './data.js?v=run1';
+import { TeamManager } from './team.js?v=run1';
+import { World } from './world.js?v=run1';
+import { serializeRun as serializeRunLite } from './run.js?v=run1';
 
 const KEY = 'verdant-s...e-v2';  // v2 = quilt roster; old v1 saves are ignored (fresh start)
 
@@ -24,6 +25,7 @@ export function saveGame(state) {
       stats: { time: Math.round(state.stats.time), encounters: state.stats.encounters, wins: state.stats.wins },
       missions: state.missions,
       road: state.road || null,
+      run: state.run ? serializeRunLite(state.run) : null,
     };
     window.localStorage.setItem(KEY, JSON.stringify(data));
     return true;
@@ -44,7 +46,7 @@ export function loadGame() {
       c.focused = false;
     }
     const world = World.restore(data.world, new World());
-    return { team, world, stats: data.stats || { time: 0, encounters: 0, wins: 0 }, missions: data.missions || {} };
+    return { team, world, stats: data.stats || { time: 0, encounters: 0, wins: 0 }, missions: data.missions || {}, run: data.run || null };
   } catch { return null; }
 }
 

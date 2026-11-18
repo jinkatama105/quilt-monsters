@@ -1,30 +1,34 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=16';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=16';
-import { Input } from './input.js?v=16';
-import { World } from './world.js?v=16';
-import { TeamManager, makeCreature } from './team.js?v=16';
-import { startBattle } from './battle.js?v=16';
-import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons } from './showdown.js?v=16';
-import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=16';
-import { wildSquad, bossSquad } from './data.js?v=16';
-import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=16';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=run1';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=run1';
+import { Input } from './input.js?v=run1';
+import { World } from './world.js?v=run1';
+import { TeamManager, makeCreature } from './team.js?v=run1';
+import { startBattle } from './battle.js?v=run1';
+import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons, Showdown as SHOWDOWN_CLASS } from './showdown.js?v=run1';
+import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=run1';
+import { wildSquad, bossSquad } from './data.js?v=run1';
+import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=run1';
+import { makeRun, restoreRun, serializeRun, drawRun, hitRun, loadData as loadRunData, chooseTrainer, buy, sell, rollShop, freeRerolls, autoMerge, stageReward, nextDay, makeOpponent, applyPassive, runSnapshot, TRAINERS_BY_ID } from './run.js?v=run1';
 
 // Showdown mode (realtime auto-battler) is the default
 // battle engine. Append ?classic=1 to the URL (or set localStorage
 // vs-classic='1') to fall back to the old turn-based duel. See README.
 const SHOWDOWN = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=16';
-import { drawFieldHud, panel } from './hud.js?v=16';
-import { PALETTE } from './config.js?v=16';
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=run1';
+import { drawFieldHud, panel } from './hud.js?v=run1';
+import { PALETTE } from './config.js?v=run1';
 function roundRectC(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=16';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=16';
-import { saveGame, loadGame, canSave } from './save.js?v=16';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=run1';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=run1';
+import { saveGame, loadGame, canSave } from './save.js?v=run1';
 const ROAD = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
+// Day-loop roguelike (Batomon/SAP style) — the newest shell; ?road=1 falls back
+// to the quilt node map, ?classic=1 to the old field game.
+const RUN = ROAD && !/road=1/.test(location.search) && localStorage.getItem('vs-mode') !== 'road';
 
 const canvas = document.getElementById('game');
 canvas.width = VIEW_W; canvas.height = VIEW_H;
@@ -65,6 +69,15 @@ function startingTeam() {
 
 // ---------------------------------------------------------------- start paths
 function newGame() {
+  if (RUN) {
+    state.world = state.world || new World();
+    state.team = state.team || startingTeam();
+    state.run = makeRun((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
+    state.mode = 'run';
+    playMusic('title');
+    saveGame(state);
+    return;
+  }
   if (ROAD) {
     state.road = makeRoad((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
     state.mode = 'road';
@@ -87,6 +100,13 @@ function continueGame() {
   state.world = saved.world;
   state.stats = saved.stats;
   state.missions = saved.missions || {};
+  if (RUN) {
+    state.run = saved.run ? restoreRun(saved.run) : makeRun(((saved.stats?.time || 0) * 7919 + 20261118) >>> 0);
+    if (state.run.phase === 'battle') state.run.phase = 'shop';
+    state.mode = 'run';
+    playMusic('title');
+    return;
+  }
   if (ROAD) {
     // old field-mode saves get wrapped into the quilt run; party & items carry over
     state.road = saved.road || makeRoad(((saved.stats?.time || 0) * 7919 + 20261118) >>> 0);
@@ -196,6 +216,7 @@ function update(dt) {
     }
     case 'draft': updateDraft(); break;
     case 'road': updateRoad(); break;
+    case 'run': updateRun(); break;
     case 'field': updateField(dt); break;
     case 'battle': updateBattle(dt); break;
     case 'codex': {
@@ -326,6 +347,87 @@ function updateRoad() {
   if (res) { state.world.setNotice(res); playSfx('pickup'); }
   if (road.spools <= 0) { state.lostNote = 'The last spool snapped'; state.mode = 'defeat'; stopMusic(); playSfx('defeat'); return; }
   saveGame(state);
+}
+
+// ---------------------------------------------------------------- quilt run (Batomon day loop)
+function updateRun() {
+  const run = state.run;
+  if (!run) { newGame(); return; }
+
+  // battle phase delegates to the showdown scene (state.battle._run set)
+  if (run.phase === 'battle') return;
+
+  if (input.hit('c')) { playSfx('menu'); state.mode = 'codex'; return; }
+  if (!input.mouse.clicked && !input.hit('enter')) return;
+
+  const id = hitRun(run, input.mouse) || (input.hit('enter') ? (run.phase === 'shop' && run.board.length ? 'battle' : run.phase === 'reward' ? 'nextday' : null) : null);
+  if (!id) return;
+  playSfx('menu');
+
+  if (id.startsWith('trainer:')) { unlockAudio(); chooseTrainer(run, id.slice(8)); saveGame(state); return; }
+  if (id.startsWith('buy:')) { const err = buy(run, Number(id.slice(4))); if (err) run._msg = err; else { run._msg = null; if (run.mergeTrinketPending && run.mergeTrinkets) autoMerge(run); } saveGame(state); return; }
+  if (id.startsWith('board:')) { const err = sell(run, Number(id.slice(6))); if (err) run._msg = err; saveGame(state); return; }
+  if (id.startsWith('trinket:')) {
+    if (run.reward && !run.reward.trinketChosen) { pickTrinketByIndex(run, Number(id.slice(8)), false); run.reward.trinketChosen = true; }
+    else pickTrinketByIndex(run, Number(id.slice(8)), true);
+    saveGame(state); return;
+  }
+  if (id === 'reroll') {
+    const cost = freeRerolls(run) > 0 ? 0 : 3;
+    if (run.coins < cost) { run._msg = 'not enough coins'; return; }
+    run.coins -= cost; if (freeRerolls(run) > 0) run._freeUsed = (run._freeUsed || 0) + 1;
+    run.mergeTrinkets = null; rollShop(run); saveGame(state); return;
+  }
+  if (id.startsWith('lock:')) { run.locked = !run.locked; saveGame(state); return; }
+  if (id === 'battle') {
+    if (!run.board.length) { run._msg = 'buy at least one monster'; return; }
+    startRunBattle(run); return;
+  }
+  if (id === 'nextday') {
+    run.mergeTrinkets = null; nextDay(run);
+    if (run.phase === 'shop' && !run.locked) rollShop(run);
+    saveGame(state); return;
+  }
+  if (id === 'endless') { run.endless = true; run.day += 1; run.phase = 'shop'; rollShop(run); saveGame(state); return; }
+  if (id === 'menu') { state.run = null; state.mode = 'title'; stopMusic(); playMusic('title'); saveGame(state); return; }
+}
+
+function pickTrinketByIndex(run, i, isMerge) {
+  const list = isMerge ? run.mergeTrinkets : run.reward?.trinkets;
+  const t = list && list[i]; if (!t) return;
+  run.trinkets.push({ ...t });
+  if (isMerge) { run.mergeTrinkets = null; run.mergeTrinketPending = false; }
+}
+
+function startRunBattle(run) {
+  const opp = makeOpponent(run);
+  const playerUnits = run.board.filter((c) => c.hp > 0);
+  if (!playerUnits.length) { run.phase = 'shop'; return; }
+  // fresh HP each battle (SAP resets between fights? no — stats persist; heal to full at Day start instead)
+  const sd = new SHOWDOWN_CLASS(playerUnits, opp.squad, 'run', null);
+  sd.zone = ['moss', 'cliff', 'temple'][run.day % 3];
+  sd.opponentName = opp.name;
+  sd._run = run;
+  state.battle = sd;
+  run.phase = 'battle';
+  state.mode = 'battle';
+  playSfx('encounter'); playMusic('cliff');
+}
+
+function finishRunBattle(b) {
+  const run = b._run;
+  state.battle = null;
+  state.mode = 'run';
+  const won = b.winner === 'player';
+  // heal board for the next fight (hp ticks are per-run-resource, hearts are the real loss)
+  for (const c of run.board) { c.hp = c.stats.hp; }
+  run.board = run.board.filter((c) => c.hp > 0); // KO'd monsters survive (auto-battler: board persists; keep all)
+  if (won) applyPassive(run, true);
+  stageReward(run, won);
+  run.phase = 'reward';
+  run.champion = won && run.day >= 10;
+  saveGame(state);
+  playMusic('title');
 }
 
 function fieldCamera() {
@@ -476,6 +578,7 @@ function roadBattleEnd(won) {
 }
 
 function finishShowdown(b) {
+  if (b._run) return finishRunBattle(b);
   state.battle = null;
   const won = b.winner === 'player';
   const captured = b.winner === 'captured';
@@ -645,6 +748,10 @@ function draw() {
       }
       break;
     }
+    case 'run': {
+      drawRun(ctx, state.run, state.t, input.mouse);
+      break;
+    }
     case 'codex': drawCodex(ctx, state.team, state.t); break;
     case 'victory': drawVictory(ctx, state.result || { time: 0, steps: 0, captures: 0, wins: 0 }, state.t); break;
     case 'defeat': drawDefeat(ctx, state, state.t); break;
@@ -656,8 +763,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=16';
-import { MOVES as MOVES_TABLE } from './data.js?v=16';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=run1';
+import { MOVES as MOVES_TABLE } from './data.js?v=run1';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {
@@ -695,4 +802,5 @@ function frame(now) {
 
 if (debugMode) debugStart();
 else { playMusic('title'); }
+if (RUN) loadRunData(); // swap built-in trainers/shop/trinkets for Manus's JSON when present
 requestAnimationFrame(frame);

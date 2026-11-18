@@ -4,12 +4,12 @@
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=16';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=16';
-import { makeCreature, giveXp } from './team.js?v=16';
-import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=16';
-import { battleBg, drawBattleBg } from './bg.js?v=16';
-import { panel, roundRect } from './hud.js?v=16';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run1';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run1';
+import { makeCreature, giveXp } from './team.js?v=run1';
+import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run1';
+import { battleBg, drawBattleBg } from './bg.js?v=run1';
+import { panel, roundRect } from './hud.js?v=run1';
 
 const R = () => Math.random();
 
@@ -448,8 +448,10 @@ export function showdownButtons(sd) {
     { id: 'ff', label: sd.speed >= 4 ? '4×' : sd.speed + '×', x: VIEW_W / 2 + 52, y: 14, w: 44, h: 40 },
   ];
   if (sd.phase === 'live' || sd.phase === 'vs') {
-    btns.push({ id: 'capture', label: 'CAPTURE', x: VIEW_W - 190, y: VIEW_H - 66, w: 170, h: 46 });
-    btns.push({ id: 'flee', label: 'FLEE', x: 20, y: VIEW_H - 66, w: 130, h: 46 });
+    if (!sd._run) { // quilt run battles: 100% automated, no capture/flee
+      btns.push({ id: 'capture', label: 'CAPTURE', x: VIEW_W - 190, y: VIEW_H - 66, w: 170, h: 46 });
+      btns.push({ id: 'flee', label: 'FLEE', x: 20, y: VIEW_H - 66, w: 130, h: 46 });
+    }
     btns.push({ id: 'codex', label: 'CODEX', x: VIEW_W / 2 - 70, y: VIEW_H - 66, w: 140, h: 46 });
   }
   return btns;

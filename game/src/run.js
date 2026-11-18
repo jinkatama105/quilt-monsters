@@ -1,0 +1,499 @@
+// run.js — THE QUILT SHOWDOWN: Batomon-style day loop (roguelike auto-battler)
+// sitting on top of the existing showdown engine. Layer:
+//   title -> trainer select -> DAY loop [ shop -> battle(auto) -> rewards ] ->
+//   hearts 0 = run over; win Day 10 = champion -> endless.
+// Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
+// below are the fallback so the loop ships before the JSON lands.
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run1';
+import { SPECIES, abilityForSpecies } from './data.js?v=run1';
+import { mulberry32, rint } from './random.js?v=run1';
+import { panel, roundRect } from './hud.js?v=run1';
+import { drawCreature } from './art.js?v=run1';
+import { makeCreature } from './team.js?v=run1';
+
+// ------------------------------------------------------------------ data
+export const BUILTIN_TRAINERS = [
+  { id: 'ranger', name: 'Moss Ranger', element: 'Verdant',
+    passive: { on: 'victory', effect: { type: 'shield', amount: 6, target: 'grass', permanent: true } },
+    text: 'On Victory: Verdant allies gain +6 Shield (permanent).' },
+  { id: 'sparker', name: 'Volt Sparker', element: 'Volt',
+    passive: { on: 'victory', effect: { type: 'spd', amount: 1, target: 'electric', permanent: true } },
+    text: 'On Victory: Volt allies gain +1 Speed (permanent).' },
+  { id: 'cinder', name: 'Cinder Kid', element: 'Ember',
+    passive: { on: 'victory', effect: { type: 'burn', amount: 3, target: 'fire', permanent: true } },
+    text: 'On Victory: Ember allies gain +3 Burn (permanent).' },
+];
+
+export const BUILTIN_SHOP = [
+  { species: 'embercub', cost: 8 }, { species: 'leaflet', cost: 8 }, { species: 'voltip', cost: 8 },
+  { species: 'tidepup', cost: 8 }, { species: 'gloomling', cost: 10 }, { species: 'mossbeak', cost: 10 },
+  { species: 'sparklet', cost: 10 }, { species: 'peblite', cost: 12 }, { species: 'stormpup', cost: 12 },
+  { species: 'frostcap', cost: 14 }, { species: 'cindermot', cost: 14 }, { species: 'gloomcap', cost: 16 },
+];
+
+export const BUILTIN_TRINKETS = [
+  { id: 'fools_gold', name: "Fool's Gold", text: '+$6 income each Day; shop stops stocking items.', effect: { type: 'income', value: 6 } },
+  { id: 'arcade_coins', name: 'Arcade Coins', text: 'Your first 2 rerolls each Day are free.', effect: { type: 'reroll_free', value: 2 } },
+  { id: 'speed_crest', name: 'Speed Crest', text: 'Right-hand monsters act 15% faster.', effect: { type: 'column_spd', value: 0.15 } },
+  { id: 'thimble', name: 'Iron Thimble', text: '+1 Shield stack to your front monster at battle start.', effect: { type: 'shield', value: 4 } },
+  { id: 'ember_thread', name: 'Ember Thread', text: 'Ember hits leave a burn tick (+2 dmg per turn).', effect: { type: 'burn_on_cast', value: 2 } },
+  { id: 'double_needle', name: 'Double Needle', text: 'One random ally multicasts its next strike.', effect: { type: 'multicast', value: 1 } },
+];
+
+// ------------------------------------------------------------------ run state
+/** Fresh run. seed = deterministic across save/restore. */
+export function makeRun(seed, trainerId = null) {
+  const rng = mulberry32(seed >>> 0);
+  return {
+    seed: seed >>> 0, rng,
+    trainerId,                       // null = trainer-select pending
+    day: 1, hearts: 10, coins: 10, rank: 'Rookie',
+    board: [],                       // up to 6 creatures (order = position)
+    trinkets: [],                    // owned {…}
+    locked: false, shop: [],         // shop offers this Day
+    phase: 'trainer',                // trainer | shop | battle | reward | champion | over
+    reward: null,                    // pending reward payload after a win
+    streak: 0, bestDay: 1,
+    champion: false, endless: false,
+  };
+}
+
+const shopFor = (run) => {
+  const rng = run.rng;
+  const items = [];
+  for (let i = 0; i < 4; i++) {
+    const s = BUILTIN_SHOP[Math.floor(rng() * BUILTIN_SHOP.length)];
+    items.push({ species: s.species, cost: s.cost, lvl: 1 + Math.floor(run.day / 4) });
+  }
+  return items;
+};
+
+export function rollShop(run) { run.shop = shopFor(run); }
+
+/** Income at Day start: base + trinket income + streak bonus. */
+export function dayIncome(run) {
+  const t = run.trinkets.reduce((a, x) => a + (x.effect.type === 'income' ? x.effect.value : 0), 0);
+  return 8 + Math.floor(run.day / 2) + t + Math.min(6, run.streak * 2);
+}
+
+export function freeRerolls(run) {
+  return run.trinkets.reduce((a, x) => a + (x.effect.type === 'reroll_free' ? x.effect.value : 0), 0);
+}
+
+/** Buy shop slot i onto the board (merge-3 auto). Returns error string or null. */
+export function buy(run, i) {
+  const offer = run.shop[i]; if (!offer) return 'empty slot';
+  if (run.board.length >= 6) return 'board full (6)';
+  if (run.coins < offer.cost) return 'not enough coins';
+  run.coins -= offer.cost;
+  run.shop[i] = null;
+  const c = makeCreature(offer.species, offer.lvl);
+  c.stars = 1; c.cost = offer.cost;
+  run.board.push(c);
+  autoMerge(run);
+  return null;
+}
+
+/** Sell board slot i for half cost. */
+export function sell(run, i) {
+  const c = run.board[i]; if (!c) return 'nothing there';
+  run.coins += Math.max(1, Math.floor((c.cost || 10) / 2));
+  run.board.splice(i, 1);
+  return null;
+}
+
+/** Merge rule: 3 copies of the same species -> 1 at stars+1 (+trinket choice at Lv2). */
+export function autoMerge(run) {
+  const by = {};
+  run.board.forEach((c, i) => { (by[c.species] = by[c.species] || []).push(i); });
+  for (const id in by) {
+    const idxs = by[id].filter((i) => (run.board[i].stars || 1) < 3);
+    if (idxs.length >= 3) {
+      const keep = run.board[idxs[0]];
+      keep.stars = (keep.stars || 1) + 1;
+      keep.nickname = `${SPECIES[id].name} ${'★★★'.slice(0, keep.stars)}`;
+      boostStats(keep, keep.stars);
+      for (const j of idxs.slice(1, 3).reverse()) run.board.splice(j, 1);
+      if (keep.stars === 2) run.mergeTrinketPending = true;  // SAP rule: merge earns a trinket
+      return true;
+    }
+  }
+  return false;
+}
+
+function boostStats(c, stars) {
+  const m = stars === 2 ? 1.5 : 2.25;
+  c.stats.hp = Math.round(c.stats.hp * m / (stars === 2 ? 1.5 / 1.5 : 1)) || c.stats.hp;
+  // simplest honest approach: rebuild from base then scale
+  const base = makeCreature(c.species, c.level);
+  c.stats = base.stats; c.stats.hp = Math.round(base.stats.hp * m);
+  c.stats.atk = Math.round(base.stats.atk * m); c.stats.def = Math.round(base.stats.def * m);
+  c.maxHp = c.stats.hp; c.hp = c.stats.hp;
+}
+
+/** Move a board monster left/right; column effects (Speed Crest) resolve in battle. */
+export function moveOn(run, from, to) {
+  const c = run.board[from]; if (!c || to < 0 || to >= run.board.length) return;
+  run.board.splice(from, 1); run.board.splice(to, 0, c);
+}
+
+/** Pick a trinket from the current 3-choice list (reward or merge). */
+export function pickTrinket(run, i) {
+  const list = run.reward?.trinkets || run.mergeTrinkets || [];
+  const t = list[i]; if (!t) return;
+  run.trinkets.push({ ...t });
+  run.mergeTrinkets = null; run.mergeTrinketPending = false;
+  if (run.reward) run.reward.trinketChosen = true;
+}
+
+// -------------------------------------------------------------- opponent
+/** Async = stat snapshot: build a deterministic enemy squad from seed+Day.
+ *  Once opponents.json lands (real player snapshots), pickOpponent swaps in. */
+export function makeOpponent(run) {
+  const rng = mulberry32((run.seed ^ (run.day * 7919)) >>> 0);
+  const n = Math.min(6, 2 + Math.ceil(run.day / 2));
+  const lvl = 1 + Math.floor(run.day / 3) + rint(0, 1, rng);
+  const squad = [];
+  for (let i = 0; i < n; i++) {
+    const s = BUILTIN_SHOP[Math.floor(rng() * BUILTIN_SHOP.length)];
+    const c = makeCreature(s.species, lvl);
+    c.stars = rng() < run.day / 22 ? 2 : 1;
+    if (c.stars === 2) boostStats(c, 2);
+    c.ability = abilityForSpecies(SPECIES[s.species]);
+    squad.push(c);
+  }
+  return { name: ['Quiet Quilter', 'Patchwork Pip', 'Spool Sergeant', 'Thimble Tyrant', 'Basting Bandit', 'Seam Sentry', 'Running-Stitch Rhea', 'Needle Nick', 'Purl Punisher', 'Hemline Hazel'][Math.floor(rng() * 10)], squad };
+}
+
+/** Snapshot the player board as an async opponent template (what a real SAP stores). */
+export function runSnapshot(run) {
+  return { trainerId: run.trainerId, day: run.day, bestDay: run.bestDay, rank: run.rank,
+    board: run.board.map((c) => ({ species: c.species, level: c.level, stars: c.stars || 1 })),
+    trinkets: run.trinkets.map((t) => t.id) };
+}
+
+// -------------------------------------------------------------- trainer passive
+/** Fire the trainer passive after a victory. Mutates board permanently. */
+export function applyPassive(run, won) {
+  if (!won) return null;
+  const tr = TRAINERS_BY_ID[run.trainerId]; if (!tr) return null;
+  const p = tr.passive; if (!p || p.on !== 'victory') return null;
+  const e = p.effect;
+  const elemMatch = { fire: 'Ember', grass: 'Verdant', electric: 'Volt', water: 'Tide', ghost: 'Gloom' }[e.target];
+  let hits = 0;
+  for (const c of run.board) {
+    const sp = SPECIES[c.species];
+    if (elemMatch && sp.element !== elemMatch) continue;
+    if (e.type === 'atk') c.stats.atk += e.amount;
+    else if (e.type === 'spd') c.stats.spd += e.amount;
+    else if (e.type === 'shield') c.shield = (c.shield || 0) + e.amount;
+    else if (e.type === 'burn') c.bonusBurn = (c.bonusBurn || 0) + e.amount;
+    hits++;
+  }
+  return hits ? `${tr.name}: ${hits} ally${hits > 1 ? 'ies' : ''} boosted` : null;
+}
+
+// live trainer table = JSON overlay (when data/trainers.json ships) merged over built-ins
+export let TRAINERS_BY_ID = Object.fromEntries(BUILTIN_TRAINERS.map((t) => [t.id, t]));
+export async function loadData() {
+  try {
+    const [tr, sh, tk] = await Promise.all([
+      fetch('data/trainers.json').then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch('data/shop.json').then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch('data/trinkets.json').then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]);
+    if (Array.isArray(tr) && tr.length) { BUILTIN_TRAINERS.length = 0; BUILTIN_TRAINERS.push(...tr); TRAINERS_BY_ID = Object.fromEntries(tr.map((t) => [t.id, t])); }
+    if (Array.isArray(sh) && sh.length) { BUILTIN_SHOP.length = 0; BUILTIN_SHOP.push(...sh); }
+    if (Array.isArray(tk) && tk.length) { BUILTIN_TRINKETS.length = 0; BUILTIN_TRINKETS.push(...tk); }
+    return true;
+  } catch { return false; }
+}
+
+export function chooseTrainer(run, id) { run.trainerId = id; run.phase = 'shop'; run.coins = 12; rollShop(run); }
+
+// ------------------------------------------------------------- reward step
+/** After a won battle: income + trinket choice (every win) staged into run.reward. */
+export function stageReward(run, won) {
+  if (won) {
+    run.streak += 1;
+    const gain = 4 + Math.min(6, run.streak * 2);  // daily income itself pays out at Day start
+    run.coins += gain;
+    const rng = run.rng;
+    const opts = [];
+    const pool = BUILTIN_TRINKETS.filter((t) => !run.trinkets.some((o) => o.id === t.id));
+    while (opts.length < 3 && pool.length) opts.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    run.reward = { gain, trinkets: opts, trinketChosen: false };
+  } else {
+    run.streak = 0;
+    run.hearts -= 1;
+    run.reward = { gain: 2, trinkets: [], trinketChosen: true };
+  }
+  run.phase = 'reward';
+}
+
+/** Confirm reward -> advance Day (or end). */
+export function nextDay(run) {
+  const endlessChampion = run.champion;
+  run.reward = null;
+  if (run.hearts <= 0) { run.phase = 'over'; return; }
+  if (run.day >= 10 && !run.champion) {
+    run.champion = true; run.rank = 'Quilt Champion';
+    run.phase = 'champion'; return;
+  }
+  run.day += 1; run.bestDay = Math.max(run.bestDay, run.day);
+  if (run.day > 10) run.endless = true;
+  run.locked = false;
+  if (!run.locked || !run.shop.some(Boolean)) rollShop(run);
+  run.coins += dayIncome(run);
+  run.phase = 'shop';
+}
+
+// -------------------------------------------------------------- persistence
+export function serializeRun(run) {
+  return { seed: run.seed, trainerId: run.trainerId, day: run.day, hearts: run.hearts, coins: run.coins,
+    rank: run.rank, board: run.board, trinkets: run.trinkets, locked: run.locked, shop: run.shop,
+    streak: run.streak, bestDay: run.bestDay, champion: run.champion, endless: run.endless,
+    phase: run.phase === 'battle' ? 'shop' : run.phase };
+}
+export function restoreRun(data) {
+  const run = makeRun(data.seed);
+  Object.assign(run, data);
+  run.rng = mulberry32((data.seed ^ (data.day * 2654435761)) >>> 0);
+  if (data.trinkets) run.trinkets = data.trinkets;
+  return run;
+}
+
+// ============================================================== drawing ===
+const EL_COLOR = (id) => ELEMENT_COLORS[SPECIES[id]?.element] || '#9fd8c8';
+const heartsRow = (ctx, x, y, run) => {
+  for (let i = 0; i < 10; i++) {
+    ctx.font = '20px monospace'; ctx.fillStyle = i < run.hearts ? '#ff6a7a' : 'rgba(255,255,255,.14)';
+    ctx.fillText('♥', x + i * 24, y);
+  }
+};
+
+export function drawRun(ctx, run, t, mouse) {
+  panel(ctx, 0, 0, VIEW_W, VIEW_H, 0.88);
+  ctx.textAlign = 'left';
+  // top bar: day / hearts / coins / rank
+  ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#ffe9b1';
+  ctx.fillText(`DAY ${run.day}${run.endless ? ' ∞' : ''}`, 24, 44);
+  heartsRow(ctx, 190, 44, run);
+  ctx.font = 'bold 22px monospace'; ctx.fillStyle = '#ffd26a';
+  ctx.fillText(`⬤ ${run.coins}`, VIEW_W - 170, 44);
+  ctx.font = '14px monospace'; ctx.fillStyle = '#9fd8c8';
+  ctx.fillText(run.rank, 24, 68);
+
+  if (run.phase === 'trainer') return drawTrainerSelect(ctx, run, t, mouse);
+  if (run.phase === 'shop') return drawShop(ctx, run, t, mouse);
+  if (run.phase === 'reward') return drawReward(ctx, run, t, mouse);
+  if (run.phase === 'champion') return drawChampion(ctx, run, t, mouse);
+  if (run.phase === 'over') return drawOver(ctx, run, t, mouse);
+}
+
+function button(ctx, b, label, hot, sub) {
+  ctx.fillStyle = hot ? 'rgba(255,209,106,.22)' : 'rgba(255,255,255,.06)';
+  roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = hot ? '#ffd26a' : '#6f8f7d'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
+  ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(label, b.x + b.w / 2, b.y + (sub ? 26 : b.h / 2 + 6));
+  if (sub) { ctx.font = '12px monospace'; ctx.fillStyle = '#9fb8a6'; ctx.fillText(sub, b.x + b.w / 2, b.y + 48); }
+  ctx.textAlign = 'left';
+}
+
+function drawTrainerSelect(ctx, run, t, mouse) {
+  ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('PICK YOUR TRAINER', VIEW_W / 2, 110); ctx.textAlign = 'left';
+  const W = 320, GAP = 36, X0 = (VIEW_W - (W * 3 + GAP * 2)) / 2, Y = 160;
+  BUILTIN_TRAINERS.forEach((tr, i) => {
+    const b = { x: X0 + i * (W + GAP), y: Y, w: W, h: 330 };
+    run._btns = run._btns || []; run._btns[i] = { ...b, id: `trainer:${tr.id}` };
+    const hot = mouse && mouse.x >= b.x && mouse.x <= b.x + b.w && mouse.y >= b.y && mouse.y <= b.y + b.h;
+    ctx.fillStyle = hot ? 'rgba(255,209,106,.10)' : 'rgba(255,255,255,.05)';
+    roundRect(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
+    ctx.strokeStyle = ELEMENT_COLORS[tr.element] || '#8ef2a0'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
+    ctx.save(); ctx.translate(b.x + b.w / 2, b.y + 120); ctx.scale(1.5, 1.5);
+    drawCreature(ctx, tr.element === 'Ember' ? 'embercub' : tr.element === 'Volt' ? 'voltip' : 'leaflet', 0, 0, t + i * 2, 'idle');
+    ctx.restore();
+    ctx.textAlign = 'center'; ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 22px monospace';
+    ctx.fillText(tr.name, b.x + b.w / 2, b.y + 220);
+    ctx.font = '13px monospace'; ctx.fillStyle = '#9fb8a6';
+    wrap(ctx, tr.text, b.x + b.w / 2, b.y + 246, b.w - 30, 17);
+    ctx.textAlign = 'left';
+  });
+}
+
+function wrap(ctx, text, cx, y, maxW, lh) {
+  const words = text.split(' '); let line = '', yy = y;
+  for (const w of words) {
+    if (ctx.measureText(line + w).width > maxW) { ctx.fillText(line, cx, yy); yy += lh; line = w + ' '; }
+    else line += w + ' ';
+  }
+  ctx.fillText(line, cx, yy);
+}
+
+function drawShop(ctx, run, t, mouse) {
+  run._btns = [];
+  ctx.fillStyle = '#9fd8c8'; ctx.font = '15px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('build your board — 3 same monsters merge to ★★ · max 6 · then BATTLE', VIEW_W / 2, 92);
+  ctx.textAlign = 'left';
+
+  // shop offers
+  const SW = 260, SH = 92, X0 = (VIEW_W - SW * 4 - 30) / 2, Y = 120;
+  run.shop.forEach((offer, i) => {
+    const b = { x: X0 + i * (SW + 10), y: Y, w: SW, h: SH };
+    run._btns.push({ ...b, id: `buy:${i}` });
+    const hot = inRect(mouse, b);
+    ctx.globalAlpha = offer ? 1 : 0.25;
+    ctx.fillStyle = hot ? 'rgba(142,242,160,.14)' : 'rgba(255,255,255,.05)';
+    roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
+    ctx.strokeStyle = offer ? EL_COLOR(offer.species) : '#556'; ctx.lineWidth = 2; ctx.stroke();
+    if (offer) {
+      ctx.save(); ctx.translate(b.x + 44, b.y + 46); ctx.scale(0.62, 0.62);
+      drawCreature(ctx, offer.species, 0, 0, t + i, 'idle'); ctx.restore();
+      ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 15px monospace';
+      ctx.fillText(SPECIES[offer.species].name, b.x + 88, b.y + 40);
+      ctx.font = '13px monospace'; ctx.fillStyle = '#9fb8a6';
+      ctx.fillText(`Lv ${offer.lvl} · ${SPECIES[offer.species].element}`, b.x + 88, b.y + 60);
+      ctx.fillStyle = '#ffd26a'; ctx.font = 'bold 16px monospace';
+      ctx.fillText(`⬤ ${offer.cost}`, b.x + 88, b.y + 80);
+    }
+    ctx.globalAlpha = 1;
+  });
+
+  // board
+  ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 18px monospace';
+  ctx.fillText(`BOARD ${run.board.length}/6`, X0, 260);
+  const BW = 148, BH = 150;
+  run.board.forEach((c, i) => {
+    const b = { x: X0 + i * (BW + 8), y: 280, w: BW, h: BH };
+    run._btns.push({ ...b, id: `board:${i}` });
+    ctx.fillStyle = inRect(mouse, b) ? 'rgba(255,157,106,.12)' : 'rgba(255,255,255,.05)';
+    roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
+    ctx.strokeStyle = EL_COLOR(c.species); ctx.lineWidth = 2; ctx.stroke();
+    ctx.save(); ctx.translate(b.x + 52, b.y + 60); ctx.scale(0.7, 0.7);
+    drawCreature(ctx, c.species, 0, 0, t + i * 1.7, 'idle'); ctx.restore();
+    ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 13px monospace';
+    ctx.fillText(`${'★'.repeat(c.stars || 1)} Lv${c.level}`, b.x + 10, b.y + 112);
+    ctx.font = '11px monospace'; ctx.fillStyle = '#9fb8a6';
+    ctx.fillText(`${c.stats.hp}hp ${c.stats.atk}atk`, b.x + 10, b.y + 128);
+    ctx.fillText(SPECIES[c.species].name, b.x + 10, b.y + 142);
+  });
+  if (run.mergeTrinketPending) { ctx.fillStyle = '#ffe9b1'; ctx.font = 'bold 14px monospace'; ctx.fillText('★ MERGE BONUS: pick a trinket below', X0, 452); }
+
+  // trinket strip
+  ctx.fillStyle = '#9fb8a6'; ctx.font = '13px monospace';
+  ctx.fillText('TRINKETS:', X0, 480);
+  run.trinkets.forEach((tr, i) => {
+    const b = { x: X0 + 90 + i * 118, y: 462, w: 112, h: 30 };
+    ctx.fillStyle = 'rgba(255,209,106,.12)'; roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
+    ctx.strokeStyle = '#c8a355'; ctx.stroke();
+    ctx.fillStyle = '#ffe9b1'; ctx.font = '11px monospace'; ctx.fillText(tr.name, b.x + 8, b.y + 19);
+  });
+
+  // merge bonus picker shares the reward row if pending
+  if (run.mergeTrinketPending && !run.mergeTrinkets) {
+    const pool = BUILTIN_TRINKETS.filter((x) => !run.trinkets.some((o) => o.id === x.id));
+    run.mergeTrinkets = pool.slice(0, 3);
+  }
+
+  // action row
+  const rerollCost = freeRerolls(run) > 0 ? 0 : 3;
+  const acts = [
+    { id: 'reroll', x: VIEW_W / 2 - 330, label: `REROLL ⬤${rerollCost}` },
+    { id: `lock:${run.locked ? 'off' : 'on'}`, x: VIEW_W / 2 - 120, label: run.locked ? '🔒 LOCKED' : 'LOCK' },
+    { id: 'battle', x: VIEW_W / 2 + 90, label: 'BATTLE ⚔', w: 240, primary: true },
+  ];
+  for (const a of acts) {
+    const b = { x: a.x, y: 540, w: a.w || 200, h: 56 };
+    run._btns.push({ ...b, id: a.id });
+    button(ctx, { ...b, hot: inRect(mouse, b) }, a.label, inRect(mouse, b));
+  }
+
+  // pending merge trinket picker overlay
+  if (run.mergeTrinketPending && run.mergeTrinkets) drawTrinketRow(ctx, run, mouse, run.mergeTrinkets, 'pick your merge bonus');
+
+  if (!run.board.length) { ctx.fillStyle = '#ff9d6a'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center'; ctx.fillText('buy at least one monster before battle', VIEW_W / 2, 630); ctx.textAlign = 'left'; }
+}
+
+function drawTrinketRow(ctx, run, mouse, list, label) {
+  ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(label.toUpperCase(), VIEW_W / 2, 640); ctx.textAlign = 'left';
+  const W = 300, X0 = (VIEW_W - W * list.length - 20 * (list.length - 1)) / 2;
+  list.forEach((tr, i) => {
+    const b = { x: X0 + i * (W + 20), y: 660, w: W, h: 96 };
+    run._btns.push({ ...b, id: `trinket:${i}` });
+    const hot = inRect(mouse, b);
+    ctx.fillStyle = hot ? 'rgba(255,209,106,.16)' : 'rgba(255,255,255,.05)';
+    roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
+    ctx.strokeStyle = '#c8a355'; ctx.lineWidth = hot ? 2.5 : 1.5; ctx.stroke();
+    ctx.fillStyle = '#ffe9b1'; ctx.font = 'bold 16px monospace'; ctx.fillText(tr.name, b.x + 14, b.y + 30);
+    ctx.fillStyle = '#9fb8a6'; ctx.font = '12px monospace';
+    ctx.save(); ctx.beginPath(); ctx.rect(b.x + 10, b.y + 38, b.w - 20, b.h - 44); ctx.clip();
+    wrapLeft(ctx, tr.text, b.x + 14, b.y + 56, b.w - 28, 15); ctx.restore();
+  });
+}
+function wrapLeft(ctx, text, x, y, maxW, lh) {
+  const words = text.split(' '); let line = '', yy = y;
+  for (const w of words) {
+    if (ctx.measureText(line + w).width > maxW) { ctx.fillText(line, x, yy); yy += lh; line = w + ' '; }
+    else line += w + ' ';
+  }
+  ctx.fillText(line, x, yy);
+}
+
+function drawReward(ctx, run, mouse) {
+  run._btns = run._btns || [];
+  const r = run.reward;
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 34px monospace'; ctx.fillStyle = r.gain > 0 ? '#8ef2a0' : '#ff9d6a';
+  ctx.fillText(r.trinkets.length ? 'VICTORY!' : 'DEFEAT…', VIEW_W / 2, 140);
+  ctx.font = 'bold 20px monospace'; ctx.fillStyle = '#ffd26a';
+  ctx.fillText(`+⬤ ${r.gain}`, VIEW_W / 2, 178);
+  ctx.font = '15px monospace'; ctx.fillStyle = '#9fd8c8';
+  ctx.fillText(r.trinkets.length ? `${run.hearts} hearts left · streak ${run.streak}` : 'you lost a heart', VIEW_W / 2, 204);
+  ctx.textAlign = 'left';
+  if (r.trinkets.length && !r.trinketChosen) {
+    drawTrinketRow(ctx, run, mouse, r.trinkets, 'pick a trinket for the win');
+  } else {
+    const b = { x: VIEW_W / 2 - 130, y: 300, w: 260, h: 60 };
+    run._btns.push({ ...b, id: 'nextday' });
+    button(ctx, { ...b, hot: inRect(mouse, b) }, `NEXT DAY →`, inRect(mouse, b));
+  }
+  if (r.trinketChosen || !r.trinkets.length) return;
+}
+
+function drawChampion(ctx, run, mouse) {
+  run._btns = run._btns || [];
+  ctx.textAlign = 'center'; ctx.font = 'bold 40px monospace'; ctx.fillStyle = '#ffe9b1';
+  ctx.fillText('★ YOU ARE A QUILT CHAMPION ★', VIEW_W / 2, 260);
+  ctx.font = '18px monospace'; ctx.fillStyle = '#8ef2a0';
+  ctx.fillText(`Day 10 cleared with ${run.hearts} hearts · rank: ${run.rank}`, VIEW_W / 2, 310);
+  ctx.textAlign = 'left';
+  const opts = [{ id: 'endless', label: 'EXTENDED (endless)', x: VIEW_W / 2 - 300 }, { id: 'menu', label: 'MAIN MENU', x: VIEW_W / 2 + 40 }];
+  for (const o of opts) {
+    const b = { x: o.x, y: 380, w: 260, h: 58 };
+    run._btns.push({ ...b, id: o.id });
+    button(ctx, b, o.label, inRect(mouse, b));
+  }
+}
+
+function drawOver(ctx, run, mouse) {
+  run._btns = run._btns || [];
+  ctx.textAlign = 'center'; ctx.font = 'bold 36px monospace'; ctx.fillStyle = '#ff9d6a';
+  ctx.fillText('RUN OVER', VIEW_W / 2, 250);
+  ctx.font = '18px monospace'; ctx.fillStyle = '#9fd8c8';
+  ctx.fillText(`survived to Day ${run.day} · best Day ${run.bestDay} · ${run.champion ? 'CHAMPION' : 'rank ' + run.rank}`, VIEW_W / 2, 300);
+  ctx.textAlign = 'left';
+  const b = { x: VIEW_W / 2 - 130, y: 360, w: 260, h: 58 };
+  run._btns.push({ ...b, id: 'menu' });
+  button(ctx, b, 'MAIN MENU', inRect(mouse, b));
+}
+
+const inRect = (m, b) => m && m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h;
+
+/** Hit-test a click; returns action id or null. */
+export function hitRun(run, mouse) {
+  for (const b of (run._btns || [])) if (inRect(mouse, b)) return b.id;
+  return null;
+}
