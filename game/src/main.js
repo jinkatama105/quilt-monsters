@@ -87,10 +87,11 @@ function continueGame() {
   state.world = saved.world;
   state.stats = saved.stats;
   state.missions = saved.missions || {};
-  if (ROAD && saved.road) {
-    state.road = saved.road;
+  if (ROAD) {
+    // old field-mode saves get wrapped into the quilt run; party & items carry over
+    state.road = saved.road || makeRoad(((saved.stats?.time || 0) * 7919 + 20261118) >>> 0);
     state.mode = 'road';
-    playMusic('moss');
+    playMusic(roadMusic(state.road));
     return;
   }
   state.mode = 'field';
