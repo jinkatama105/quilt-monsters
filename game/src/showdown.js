@@ -4,19 +4,20 @@
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=12';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=12';
-import { makeCreature, giveXp } from './team.js?v=12';
-import { drawCreature } from './art.js?v=12';
-import { battleBg, drawBattleBg } from './bg.js?v=12';
-import { panel, roundRect } from './hud.js?v=12';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=14';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=14';
+import { makeCreature, giveXp } from './team.js?v=14';
+import { drawCreature, drawQuilt } from './art.js?v=14';
+import { battleBg, drawBattleBg } from './bg.js?v=14';
+import { panel, roundRect } from './hud.js?v=14';
 
 const R = () => Math.random();
 
 // Ghibli PNG loader (own cache, smaller draw size for squad members)
 const artCache = new Map();
 const HAS_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite']);
-function unitArt(ctx, speciesId, cx, cy, pose, size) {
+function unitArt(ctx, speciesId, cx, cy, pose, size, t = 0) {
+  if (drawQuilt(ctx, speciesId, cx, cy, pose, size, t)) return true;
   if (!HAS_ART.has(speciesId)) return false;
   let img = artCache.get(speciesId);
   if (img === undefined) {
@@ -302,7 +303,7 @@ export function drawShowdown(ctx, sd, t) {
     const size = u.leader || u.sp.boss ? 150 : 118;
     const pose = !u.alive ? 'defeat' : u.fx && u.fx.kind === 'attack' ? 'attack' : u.fx && u.fx.kind === 'hurt' ? 'hurt' : 'idle';
     const bounced = pose === 'attack' ? (u.side === 'player' ? -14 : 14) : 0;
-    if (!unitArt(ctx, u.c.species, p.x + bounced, p.y, pose, size)) {
+    if (!unitArt(ctx, u.c.species, p.x + bounced, p.y, pose, size, t)) {
       ctx.save();
       ctx.translate(p.x + bounced, p.y);
       ctx.scale(size / 160, size / 160);
@@ -392,7 +393,7 @@ function drawVsCard(ctx, sd) {
     list.forEach((u, i) => {
       const p = { x: x + dir * (i % 3) * 120, y: 300 + Math.floor(i / 3) * 180 };
       ctx.save(); ctx.globalAlpha = k;
-      if (!unitArt(ctx, u.c.species, p.x, p.y, 'idle', 100)) {
+      if (!unitArt(ctx, u.c.species, p.x, p.y, 'idle', 100, sd.t)) {
         ctx.translate(p.x, p.y); ctx.scale(0.7, 0.7); drawCreature(ctx, u.c.species, 0, 0, sd.t, 'idle');
       }
       ctx.restore();

@@ -179,15 +179,139 @@ export const SPECIES = {
     base: { hp: 30, atk: 6, def: 11, spd: 3 }, xpYield: 26, rarity: 3, ability: 'bulwark',
     learn: [{ lv: 1, move: 'leafLash' }, { lv: 7, move: 'bloomDrain' }],
   },
+
+  // ---- MONSPEC1: Quilt Edition (Muse portraits + poses) ----
+  embercub: {
+    id: 'embercub', name: 'Embercub', element: 'Ember', quilt: true,
+    desc: 'A stitched cub with a button eye that stays warm long after the fire dies.',
+    base: { hp: 27, atk: 9, def: 6, spd: 7 }, xpYield: 34, rarity: 2, ability: 'kindle',
+    learn: [{ lv: 1, move: 'emberDart' }, { lv: 6, move: 'cinderRoar' }],
+  },
+  cinderwing: {
+    id: 'cinderwing', name: 'Cinderwing', element: 'Ember', quilt: true,
+    desc: 'Its patchwork wings shed sparks like loose thread. Do not re-sew.',
+    base: { hp: 23, atk: 10, def: 5, spd: 10 }, xpYield: 36, rarity: 2, ability: 'kindle',
+    learn: [{ lv: 1, move: 'emberDart' }, { lv: 8, move: 'mothCinder' }],
+  },
+  leaflet: {
+    id: 'leaflet', name: 'Leaflet', element: 'Verdant', quilt: true,
+    desc: 'A tiny green quilt-thing that photosynthesises naptime.',
+    base: { hp: 25, atk: 7, def: 8, spd: 8 }, xpYield: 31, rarity: 1, ability: 'bulwark',
+    learn: [{ lv: 1, move: 'leafLash' }, { lv: 7, move: 'mossVeil' }],
+  },
+  thornbloom: {
+    id: 'thornbloom', name: 'Thornbloom', element: 'Verdant', quilt: true,
+    desc: 'Beautiful flowers, hateful thorns, hand-stitched in that order.',
+    base: { hp: 28, atk: 9, def: 8, spd: 5 }, xpYield: 37, rarity: 3, ability: 'riposte',
+    learn: [{ lv: 1, move: 'leafLash' }, { lv: 9, move: 'bloomDrain' }],
+  },
+  sparklet: {
+    id: 'sparklet', name: 'Sparklet', element: 'Volt', quilt: true,
+    desc: 'A lavender storm-cloud plush. Static hair, literally.',
+    base: { hp: 22, atk: 9, def: 5, spd: 11 }, xpYield: 35, rarity: 2, ability: 'overload',
+    learn: [{ lv: 1, move: 'sparkJolt' }, { lv: 6, move: 'staticField' }],
+  },
+  voltail: {
+    id: 'voltail', name: 'Voltail', element: 'Volt', quilt: true,
+    desc: 'Sage-green cat-thing with a segmented lightning tail. Knits itself when scared.',
+    base: { hp: 24, atk: 10, def: 6, spd: 10 }, xpYield: 38, rarity: 3, ability: 'overload',
+    learn: [{ lv: 1, move: 'sparkJolt' }, { lv: 8, move: 'thunderPelea' }],
+  },
+  tidepup: {
+    id: 'tidepup', name: 'Tidepup', element: 'Tide', quilt: true,
+    desc: 'A loyal puddle-pup that refills itself from any basin.',
+    base: { hp: 26, atk: 8, def: 7, spd: 8 }, xpYield: 32, rarity: 1, ability: 'riposte',
+    learn: [{ lv: 1, move: 'bubbleFlick' }, { lv: 7, move: 'tideMend' }],
+  },
+  bubblet: {
+    id: 'bubblet', name: 'Bubblet', element: 'Tide', quilt: true,
+    desc: 'Round, soft, buoyant. Three opinions, zero of them yours.',
+    base: { hp: 29, atk: 6, def: 9, spd: 5 }, xpYield: 33, rarity: 2, ability: 'bulwark',
+    learn: [{ lv: 1, move: 'bubbleFlick' }, { lv: 9, move: 'brineWave' }],
+  },
+  gloomoth: {
+    id: 'gloomoth', name: 'Gloomoth', element: 'Gloom', quilt: true,
+    desc: 'Moth-shaped quilt that lands on your shoulder and lowers the lamps.',
+    base: { hp: 23, atk: 9, def: 6, spd: 9 }, xpYield: 35, rarity: 2, ability: 'dread',
+    learn: [{ lv: 1, move: 'gloomSpore' }, { lv: 8, move: 'mothCinder' }],
+  },
+  shadewhisp: {
+    id: 'shadewhisp', name: 'Shadewhisp', element: 'Gloom', quilt: true,
+    desc: 'Half plush, half rumour. The stitching is entirely rumour.',
+    base: { hp: 22, atk: 10, def: 5, spd: 10 }, xpYield: 37, rarity: 3, ability: 'dread',
+    learn: [{ lv: 1, move: 'nightCreep' }, { lv: 9, move: 'hexBloom' }],
+  },
+
+  // ---- MONSPEC1: Quilt Edition (Manus animation sheets) ----
+  pyrelamb: {
+    id: 'pyrelamb', name: 'Pyrelamb', element: 'Ember', quiltAnim: true,
+    desc: 'A little lamb of embers. Baa sounds like a fireplace.',
+    base: { hp: 25, atk: 9, def: 6, spd: 8 }, xpYield: 33, rarity: 2, ability: 'kindle',
+    learn: [{ lv: 1, move: 'emberDart' }, { lv: 7, move: 'cinderRoar' }],
+  },
+  ashwing: {
+    id: 'ashwing', name: 'Ashwing', element: 'Ember', quiltAnim: true,
+    desc: 'Grey-winged and grim. Where it lands, the campfire relights.',
+    base: { hp: 24, atk: 10, def: 5, spd: 10 }, xpYield: 36, rarity: 2, ability: 'kindle',
+    learn: [{ lv: 1, move: 'mothCinder' }, { lv: 8, move: 'cinderRoar' }],
+  },
+  mosskip: {
+    id: 'mosskip', name: 'Mosskip', element: 'Verdant', quiltAnim: true,
+    desc: 'Hops between stones; wherever it lands, moss follows.',
+    base: { hp: 23, atk: 7, def: 7, spd: 11 }, xpYield: 31, rarity: 1, ability: 'bulwark',
+    learn: [{ lv: 1, move: 'leafLash' }, { lv: 6, move: 'mossVeil' }],
+  },
+  brambletusk: {
+    id: 'brambletusk', name: 'Brambletusk', element: 'Verdant', quiltAnim: true,
+    desc: 'A boar quilted from brambles. Charging is its only diplomacy.',
+    base: { hp: 32, atk: 10, def: 9, spd: 4 }, xpYield: 39, rarity: 3, ability: 'riposte',
+    learn: [{ lv: 1, move: 'leafLash' }, { lv: 9, move: 'bloomDrain' }],
+  },
+  zipfinch: {
+    id: 'zipfinch', name: 'Zipfinch', element: 'Volt', quiltAnim: true,
+    desc: 'Smaller than the sound it makes. Twice as loud as both.',
+    base: { hp: 20, atk: 8, def: 4, spd: 13 }, xpYield: 33, rarity: 1, ability: 'overload',
+    learn: [{ lv: 1, move: 'sparkJolt' }],
+  },
+  thunderhare: {
+    id: 'thunderhare', name: 'Thunderhare', element: 'Volt', quiltAnim: true,
+    desc: 'Its thump is a tiny thunderclap. Rabbits everywhere are suspicious.',
+    base: { hp: 24, atk: 9, def: 6, spd: 12 }, xpYield: 37, rarity: 3, ability: 'overload',
+    learn: [{ lv: 1, move: 'sparkJolt' }, { lv: 8, move: 'thunderPelea' }],
+  },
+  brinebell: {
+    id: 'brinebell', name: 'Brinebell', element: 'Tide', quiltAnim: true,
+    desc: 'Tolls a wet bell when the tide turns. Nobody asked the tide.',
+    base: { hp: 27, atk: 7, def: 9, spd: 6 }, xpYield: 34, rarity: 2, ability: 'bulwark',
+    learn: [{ lv: 1, move: 'bubbleFlick' }, { lv: 9, move: 'glacierTide' }],
+  },
+  moonseal: {
+    id: 'moonseal', name: 'Moonseal', element: 'Tide', quiltAnim: true,
+    desc: 'Balances a full moon on its nose. The moon allows this.',
+    base: { hp: 29, atk: 8, def: 8, spd: 7 }, xpYield: 38, rarity: 3, ability: 'riposte',
+    learn: [{ lv: 1, move: 'tideMend' }, { lv: 8, move: 'brineWave' }],
+  },
+  duskowl: {
+    id: 'duskowl', name: 'Duskowl', element: 'Gloom', quiltAnim: true,
+    desc: 'Blinks once per sunset. The sunset always loses the stare.',
+    base: { hp: 25, atk: 9, def: 7, spd: 8 }, xpYield: 36, rarity: 2, ability: 'dread',
+    learn: [{ lv: 1, move: 'nightCreep' }, { lv: 8, move: 'duskRequiem' }],
+  },
+  shadehare: {
+    id: 'shadehare', name: 'Shadehare', element: 'Gloom', quiltAnim: true,
+    desc: 'A hare cut from the shadow of a bigger hare.',
+    base: { hp: 22, atk: 10, def: 5, spd: 11 }, xpYield: 35, rarity: 2, ability: 'dread',
+    learn: [{ lv: 1, move: 'gloomSpore' }, { lv: 7, move: 'nightCreep' }],
+  },
 };
 
 export const SPECIES_LIST = Object.keys(SPECIES);
 
 // Wild encounter tables per zone id (weight).
 export const WILD_TABLES = {
-  moss:   [['mossbeak', 5], ['frostcap', 3], ['stormpup', 2], ['thornback', 2], ['gloomling', 2], ['verdanom', 4], ['tidrel', 3], ['voltip', 2], ['emberling', 2], ['gloomcap', 1], ['fernacle', 2], ['brineling', 2]],
-  cliff:  [['cindermot', 5], ['embersnail', 3], ['peblite', 3], ['stormpup', 2], ['emberling', 5], ['voltip', 3], ['magmoth', 0.02], ['gloomcap', 1], ['lampkin', 2], ['arcmoth', 2]],
-  temple: [['gloomling', 5], ['duskfin', 2], ['frostcap', 2], ['gloomcap', 5], ['verdanom', 2], ['nocturne', 0.012], ['tidrel', 1], ['murkmaw', 2], ['arcmoth', 1]],
+  moss:   [['mossbeak', 5], ['frostcap', 3], ['stormpup', 2], ['thornback', 2], ['gloomling', 2], ['verdanom', 4], ['tidrel', 3], ['voltip', 2], ['emberling', 2], ['gloomcap', 1], ['fernacle', 2], ['brineling', 2], ['leaflet', 3], ['mosskip', 3], ['tidepup', 2], ['bubblet', 2], ['thornbloom', 1], ['brinebell', 1], ['moonseal', 0.5]],
+  cliff:  [['cindermot', 5], ['embersnail', 3], ['peblite', 3], ['stormpup', 2], ['emberling', 5], ['voltip', 3], ['magmoth', 0.02], ['gloomcap', 1], ['lampkin', 2], ['arcmoth', 2], ['embercub', 3], ['pyrelamb', 3], ['cinderwing', 2], ['ashwing', 2], ['sparklet', 2], ['voltail', 1], ['zipfinch', 2], ['thunderhare', 1]],
+  temple: [['gloomling', 5], ['duskfin', 2], ['frostcap', 2], ['gloomcap', 5], ['verdanom', 2], ['nocturne', 0.012], ['tidrel', 1], ['murkmaw', 2], ['arcmoth', 1], ['gloomoth', 3], ['shadewhisp', 2], ['duskowl', 2], ['shadehare', 2], ['brambletusk', 1]],
 };
 
 // ------------------------------------------------- showdown abilities (passive)

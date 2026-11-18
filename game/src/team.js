@@ -1,7 +1,7 @@
 // team.js — the player's party, inventory, stat growth and capture logic.
-import { SPECIES, MOVES, movesForSpecies, abilityForSpecies } from './data.js?v=12';
-import { PARTY_MAX, XP_CURVE, STAT_GROWTH, CAPTURE } from './config.js?v=12';
-import { roll } from './random.js?v=12';
+import { SPECIES, MOVES, movesForSpecies, abilityForSpecies } from './data.js?v=14';
+import { PARTY_MAX, XP_CURVE, STAT_GROWTH, CAPTURE } from './config.js?v=14';
+import { roll } from './random.js?v=14';
 
 /** Build a fresh creature instance from a species id + level. */
 export function makeCreature(speciesId, level) {
@@ -128,6 +128,36 @@ export class TeamManager {
 
   markSeen(speciesId) { this.dexSeen.add(speciesId); }
   markCaught(speciesId) { this.dexSeen.add(speciesId); this.dexCaught.add(speciesId); }
+
+  /** Merge: two same-species creatures fuse into the kept one (+1 star, max 3).
+   *  Star = +30% all stats, level takes the max, unique moves carry over (cap 4).
+   *  Returns the survivor, or null when no merge candidate exists. */
+  mergeInto(pool, keepIdx) {
+    const keep = pool[keepIdx];
+    if (!keep || (keep.stars || 0) >= 3) return null;
+    const dupIdx = pool.findIndex((c, i) => i !== keepIdx && c.species === keep.species && c.hp > 0 && keep.hp > 0);
+    if (dupIdx < 0) return null;
+    const dup = pool[dupIdx];
+    keep.level = Math.max(keep.level, dup.level);
+    keep.stars = (keep.stars || 0) + 1;
+    const m = 1 + 0.3 * keep.stars;
+    const sp = SPECIES[keep.species];
+    keep.stats = {
+      hp: Math.round(sp.base.hp * (1 + STAT_GROWTH * (keep.level - 1)) * m),
+      atk: Math.round(sp.base.atk * (1 + STAT_GROWTH * (keep.level - 1)) * m),
+      def: Math.round(sp.base.def * (1 + STAT_GROWTH * (keep.level - 1)) * m),
+      spd: Math.round(sp.base.spd * (1 + STAT_GROWTH * (keep.level - 1)) * m),
+    };
+    for (const mv of dup.moves) if (!keep.moves.some((k) => k.key === mv.key) && keep.moves.length < 4) keep.moves.push(mv);
+    pool.splice(dupIdx, 1); // consumed
+    keep.hp = Math.min(keep.hp + Math.round(keep.stats.hp * 0.25), keep.stats.hp); // fuse soothing
+    return keep;
+  }
+  canMerge(pool, idx) {
+    const c = pool[idx];
+    if (!c || c.hp <= 0 || (c.stars || 0) >= 3) return false;
+    return pool.some((o, i) => i !== idx && o.species === c.species && o.hp > 0);
+  }
 
   serialize() {
     return {

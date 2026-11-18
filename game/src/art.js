@@ -2,8 +2,8 @@
 // creature portraits (one function per species), the field tileset, item icons,
 // particles. pos: 'idle' | 'defeat' | 'hurt'. All silhouettes are thick,
 // caricatural and share one family colour per element.
-import { ELEMENT_COLORS, TILE, T } from './config.js?v=12';
-export { T } from './config.js?v=12';
+import { ELEMENT_COLORS, TILE, T } from './config.js?v=14';
+export { T } from './config.js?v=14';
 
 function bodyGrad(ctx, cx, cy, r, color) {
   const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, r * 0.15, cx, cy, r * 1.25);
@@ -469,9 +469,55 @@ export function drawGloomling(ctx, cx, cy, t, pos, color = ELEMENT_COLORS.Gloom)
 }
 
 export function drawCreature(ctx, speciesId, cx, cy, t, pos) {
+  if (drawQuilt(ctx, speciesId, cx, cy, pos, 160, t)) return;
   const fn = SPECIES_ART[speciesId] || drawGloomcap;
   fn(ctx, cx, cy, t, pos);
 }
+
+// ---------------------------------------------------------------- Quilt Edition (Monspec1)
+// Muse statics + Manus 4x4 animation sheets. Returns true if it drew something.
+const quiltCache = new Map();
+const QUILT_STATIC = new Set(['embercub','cinderwing','leaflet','thornbloom','sparklet','voltail','tidepup','bubblet','gloomoth','shadewhisp']);
+const QUILT_SHEET = new Set(['pyrelamb','ashwing','mosskip','brambletusk','zipfinch','thunderhare','brinebell','moonseal','duskowl','shadehare']);
+const SHEET_ROW = { idle: 0, attack: 1, hurt: 1, skill: 2, defeat: 3 };
+function loadImg(key, src) {
+  let img = quiltCache.get(key);
+  if (img === undefined) {
+    img = new Image();
+    img.onerror = () => quiltCache.set(key, false);
+    img.onload = () => quiltCache.set(key, img);
+    img.src = src;
+    quiltCache.set(key, img);
+  }
+  return img;
+}
+export function drawQuilt(ctx, speciesId, cx, cy, pose, size, t = 0) {
+  const rowMap = SHEET_ROW[pose] ?? (pose === 'defeat' ? 3 : 0);
+  if (QUILT_SHEET.has(speciesId)) {
+    const img = loadImg('sheet:' + speciesId, `assets/quilt/${speciesId}-sheet.png`);
+    if (!img || img === false || !img.naturalWidth) return false;
+    const cell = img.naturalWidth / 4;
+    const frame = pose === 'idle' ? Math.floor(t * 6) % 4 : Math.floor(t * 12) % 4;
+    ctx.save(); ctx.translate(cx, cy);
+    if (pose === 'defeat') { ctx.globalAlpha = 0.45; ctx.translate(0, size * 0.12); }
+    ctx.drawImage(img, frame * cell, rowMap * cell, cell, cell, -size / 2, -size / 2, size, size);
+    ctx.restore();
+    return true;
+  }
+  if (QUILT_STATIC.has(speciesId)) {
+    const poseKey = pose === 'attack' || pose === 'hurt' ? `${speciesId}-atk` : speciesId;
+    const img = loadImg('q:' + poseKey, `assets/quilt/${poseKey}.png`);
+    if (!img || img === false || !img.naturalWidth) return false;
+    ctx.save(); ctx.translate(cx, cy);
+    if (pose === 'defeat') { ctx.globalAlpha = 0.45; ctx.translate(0, size * 0.12); }
+    const bob = pose === 'idle' ? Math.sin(t * 3) * size * 0.02 : 0;
+    ctx.drawImage(img, -size / 2, -size / 2 + bob, size, size);
+    ctx.restore();
+    return true;
+  }
+  return false;
+}
+export { QUILT_STATIC, QUILT_SHEET };
 
 // ---------------------------------------------------------------- player ranger (field avatar)
 export function drawRanger(ctx, cx, cy, dir, walking, t) {

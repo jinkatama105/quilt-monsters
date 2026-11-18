@@ -1,26 +1,27 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=12';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=12';
-import { Input } from './input.js?v=12';
-import { World } from './world.js?v=12';
-import { TeamManager, makeCreature } from './team.js?v=12';
-import { startBattle } from './battle.js?v=12';
-import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons } from './showdown.js?v=12';
-import { wildSquad, bossSquad } from './data.js?v=12';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=14';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=14';
+import { Input } from './input.js?v=14';
+import { World } from './world.js?v=14';
+import { TeamManager, makeCreature } from './team.js?v=14';
+import { startBattle } from './battle.js?v=14';
+import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons } from './showdown.js?v=14';
+import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=14';
+import { wildSquad, bossSquad } from './data.js?v=14';
 
 // Showdown mode (realtime auto-battler) is the default
 // battle engine. Append ?classic=1 to the URL (or set localStorage
 // vs-classic='1') to fall back to the old turn-based duel. See README.
 const SHOWDOWN = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=12';
-import { drawFieldHud, panel } from './hud.js?v=12';
-import { PALETTE } from './config.js?v=12';
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=14';
+import { drawFieldHud, panel } from './hud.js?v=14';
+import { PALETTE } from './config.js?v=14';
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=12';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=12';
-import { saveGame, loadGame, canSave } from './save.js?v=12';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=14';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=14';
+import { saveGame, loadGame, canSave } from './save.js?v=14';
 
 const canvas = document.getElementById('game');
 canvas.width = VIEW_W; canvas.height = VIEW_H;
@@ -108,6 +109,16 @@ function debugStart() {
 
 function startEncounterBattle(enemy, kind, mission = null) {
   if (!state.team.firstAlive()) return;
+  if (SHOWDOWN && !state._draftDone) {
+    // draft first: pick squad / merge before the battle actually starts
+    state.pendingBattle = { enemy, kind, mission };
+    state.draft = openDraft(state.team);
+    state.mode = 'draft';
+    state.submenu = null;
+    playSfx('menu');
+    return;
+  }
+  state._draftDone = false;
   if (SHOWDOWN) {
     // squad-vs-squad auto battle. `enemy` is the lead creature; escorts are rolled.
     const zone = state.world.zoneId;
@@ -161,6 +172,7 @@ function update(dt) {
       }
       break;
     }
+    case 'draft': updateDraft(); break;
     case 'field': updateField(dt); break;
     case 'battle': updateBattle(dt); break;
     case 'codex': {
@@ -230,6 +242,37 @@ function updateField(dt) {
     const cam = fieldCamera();
     const evt = state.world.clickAt(input.mouse.x + cam.x, input.mouse.y + cam.y, state.team);
     if (evt) playSfx('pickup');
+  }
+}
+
+function updateDraft() {
+  const d = state.draft;
+  if (!d) { state.mode = 'field'; return; }
+  const btns = draftButtons(d);
+  // smaller buttons win over the full-card sel: hitbox they sit inside
+  const clicked = input.mouse.clicked ? (btns.find((b) => !b.id.startsWith('sel:') && input.inRect(b.x, b.y, b.w, b.h)) || btns.find((b) => b.id.startsWith('sel:') && input.inRect(b.x, b.y, b.w, b.h))) : null;
+  if (!clicked && input.hit('escape')) { state.draft = null; state.pendingBattle = null; state.mode = 'field'; playSfx('menu'); return; }
+  if (!clicked) return;
+  if (clicked.id.startsWith('sel:')) {
+    const i = +clicked.id.slice(4);
+    const at = d.sel.indexOf(i);
+    if (at >= 0) d.sel.splice(at, 1);
+    else if (d.sel.length < 6 && d.pool[i].hp > 0) d.sel.push(i);
+    playSfx('menu');
+  } else if (clicked.id.startsWith('merge:')) {
+    const s = doMerge(d, +clicked.id.slice(6), state.team);
+    if (s) { playSfx('heal'); state.world.setNotice(`${s.nickname} fused — ★${'★'.repeat(s.stars - 1)}!`); }
+  } else if (clicked.id === 'auto') {
+    d.sel = d.pool.map((c, i) => ({ c, i })).filter(({ c }) => c.hp > 0)
+      .sort((a, b) => b.c.level - a.c.level).slice(0, 6).map(({ i }) => i);
+    playSfx('menu');
+  } else if (clicked.id === 'deploy') {
+    if (!d.sel.length) { state.world.setNotice('Pick at least one monster.'); return; }
+    commitDraft(state.team, d);
+    const pb = state.pendingBattle; state.draft = null; state._draftDone = true;
+    startEncounterBattle(pb.enemy, pb.kind, pb.mission);
+  } else if (clicked.id === 'cancel') {
+    state.draft = null; state.pendingBattle = null; state.mode = 'field'; playSfx('menu');
   }
 }
 
@@ -504,6 +547,7 @@ function draw() {
         drawBattleSceneHud(state.battle);
       }
       break;
+    case 'draft': drawField(ctx, state.world, state.t); drawDraft(ctx, state.draft, state.t); break;
     case 'codex': drawCodex(ctx, state.team, state.t); break;
     case 'victory': drawVictory(ctx, state.result || { time: 0, steps: 0, captures: 0, wins: 0 }, state.t); break;
     case 'defeat': drawDefeat(ctx, state, state.t); break;
@@ -515,8 +559,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=12';
-import { MOVES as MOVES_TABLE } from './data.js?v=12';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=14';
+import { MOVES as MOVES_TABLE } from './data.js?v=14';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {
