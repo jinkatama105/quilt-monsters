@@ -188,8 +188,8 @@ export function drawVictory(ctx, result, t) {
     ctx.globalAlpha = 1;
   }
   drawCreature(ctx, 'nocturne', VIEW_W / 2, 430, t, 'defeat');
-  drawCreature(ctx, 'emberling', 300, 560, t + 1, 'idle');
-  drawCreature(ctx, 'verdanom', 980, 560, t + 2, 'idle');
+  drawCreature(ctx, 'embercub', 300, 560, t + 1, 'idle');
+  drawCreature(ctx, 'leaflet', 980, 560, t + 2, 'idle');
   panel(ctx, VIEW_W / 2 - 360, 70, 720, 150, 0.92);
   centerText(ctx, 'THE SHRINE FALLS SILENT', VIEW_W / 2, 128, 'bold 42px monospace', '#e8d5ff');
   centerText(ctx, 'Nocturne is bound — the showdown is won', VIEW_W / 2, 172, '18px monospace', '#9fd5a8');

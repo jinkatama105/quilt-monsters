@@ -309,9 +309,9 @@ export const SPECIES_LIST = Object.keys(SPECIES);
 
 // Wild encounter tables per zone id (weight).
 export const WILD_TABLES = {
-  moss:   [['mossbeak', 5], ['frostcap', 3], ['stormpup', 2], ['thornback', 2], ['gloomling', 2], ['verdanom', 4], ['tidrel', 3], ['voltip', 2], ['emberling', 2], ['gloomcap', 1], ['fernacle', 2], ['brineling', 2], ['leaflet', 3], ['mosskip', 3], ['tidepup', 2], ['bubblet', 2], ['thornbloom', 1], ['brinebell', 1], ['moonseal', 0.5]],
-  cliff:  [['cindermot', 5], ['embersnail', 3], ['peblite', 3], ['stormpup', 2], ['emberling', 5], ['voltip', 3], ['magmoth', 0.02], ['gloomcap', 1], ['lampkin', 2], ['arcmoth', 2], ['embercub', 3], ['pyrelamb', 3], ['cinderwing', 2], ['ashwing', 2], ['sparklet', 2], ['voltail', 1], ['zipfinch', 2], ['thunderhare', 1]],
-  temple: [['gloomling', 5], ['duskfin', 2], ['frostcap', 2], ['gloomcap', 5], ['verdanom', 2], ['nocturne', 0.012], ['tidrel', 1], ['murkmaw', 2], ['arcmoth', 1], ['gloomoth', 3], ['shadewhisp', 2], ['duskowl', 2], ['shadehare', 2], ['brambletusk', 1]],
+  moss:   [['leaflet', 4], ['mosskip', 3], ['tidepup', 3], ['bubblet', 3], ['thornbloom', 2], ['brinebell', 2], ['moonseal', 1], ['sparklet', 1]],
+  cliff:  [['magmoth', 0.02], ['embercub', 4], ['pyrelamb', 3], ['cinderwing', 3], ['ashwing', 2], ['sparklet', 2], ['voltail', 2], ['zipfinch', 2], ['thunderhare', 1]],
+  temple: [['nocturne', 0.012], ['gloomoth', 4], ['shadewhisp', 3], ['duskowl', 2], ['shadehare', 2], ['brambletusk', 2], ['leaflet', 1]],
 };
 
 // ------------------------------------------------- showdown abilities (passive)

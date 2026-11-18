@@ -5,7 +5,7 @@ import { SPECIES } from './data.js?v=15';
 import { TeamManager } from './team.js?v=15';
 import { World } from './world.js?v=15';
 
-const KEY = 'verdant-s...e-v1';
+const KEY = 'verdant-s...e-v2';  // v2 = quilt roster; old v1 saves are ignored (fresh start)
 
 export function canSave() {
   try {

@@ -53,8 +53,8 @@ window.__vsHooks = { startEncounterBattle, makeCreature, newGame, respawnInMeado
 
 function startingTeam() {
   const team = new TeamManager();
-  team.addCreature(makeCreature('emberling', 5));
-  team.addCreature(makeCreature('tidrel', 4));
+  team.addCreature(makeCreature('embercub', 5));
+  team.addCreature(makeCreature('leaflet', 4));
   return team;
 }
 
@@ -88,12 +88,12 @@ function debugStart() {
     state.mode = 'victory'; playSfx('victory'); playMusic('title');
   } else if (debugMode === 'codex') {
     for (const id of Object.keys(SPECIES)) { state.team.dexSeen.add(id); }
-    ['emberling', 'verdanom', 'tidrel', 'gloomcap'].forEach((id) => state.team.dexCaught.add(id));
+    ['embercub', 'leaflet', 'gloomoth', 'tidepup'].forEach((id) => state.team.dexCaught.add(id));
     state.mode = 'codex'; playMusic('title');
   } else if (debugMode === 'battle') {
     newGame();
-    state.team.markSeen('verdanom');
-    startEncounterBattle(makeCreature('verdanom', 7), 'wild');
+    state.team.markSeen('magmoth');
+    startEncounterBattle(makeCreature('magmoth', 7), 'wild');
     playMusic('cliff');
   } else if (debugMode === 'defeat') {
     state.lostNote = 'Seedstones scattered';
