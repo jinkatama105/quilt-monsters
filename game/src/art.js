@@ -2,8 +2,8 @@
 // creature portraits (one function per species), the field tileset, item icons,
 // particles. pos: 'idle' | 'defeat' | 'hurt'. All silhouettes are thick,
 // caricatural and share one family colour per element.
-import { ELEMENT_COLORS, TILE, T } from './config.js?v=run1';
-export { T } from './config.js?v=run1';
+import { ELEMENT_COLORS, TILE, T } from './config.js?v=run2';
+export { T } from './config.js?v=run2';
 
 function bodyGrad(ctx, cx, cy, r, color) {
   const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, r * 0.15, cx, cy, r * 1.25);
@@ -492,7 +492,7 @@ function loadImg(key, src) {
   return img;
 }
 export function loadQuiltImg(key, src) { return loadImg(key, src); }
-export function drawQuilt(ctx, speciesId, cx, cy, pose, size, t = 0) {
+export function drawQuilt(ctx, speciesId, cx, cy, pose, size, t = 0, flip = false) {
   const rowMap = SHEET_ROW[pose] ?? (pose === 'defeat' ? 3 : 0);
   if (QUILT_SHEET.has(speciesId)) {
     const img = loadImg('sheet:' + speciesId, `assets/quilt/${speciesId}-sheet.png`);
@@ -500,6 +500,7 @@ export function drawQuilt(ctx, speciesId, cx, cy, pose, size, t = 0) {
     const cell = img.naturalWidth / 4;
     const frame = pose === 'idle' ? Math.floor(t * 6) % 4 : Math.floor(t * 12) % 4;
     ctx.save(); ctx.translate(cx, cy);
+    if (flip) ctx.scale(-1, 1);
     if (pose === 'defeat') { ctx.globalAlpha = 0.45; ctx.translate(0, size * 0.12); }
     ctx.drawImage(img, frame * cell, rowMap * cell, cell, cell, -size / 2, -size / 2, size, size);
     ctx.restore();
@@ -510,6 +511,7 @@ export function drawQuilt(ctx, speciesId, cx, cy, pose, size, t = 0) {
     const img = loadImg('q:' + poseKey, `assets/quilt/${poseKey}.png`);
     if (!img || img === false || !img.naturalWidth) return false;
     ctx.save(); ctx.translate(cx, cy);
+    if (flip) ctx.scale(-1, 1);
     if (pose === 'defeat') { ctx.globalAlpha = 0.45; ctx.translate(0, size * 0.12); }
     const bob = pose === 'idle' ? Math.sin(t * 3) * size * 0.02 : 0;
     ctx.drawImage(img, -size / 2, -size / 2 + bob, size, size);

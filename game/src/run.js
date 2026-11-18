@@ -4,15 +4,14 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run1';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run1';
-import { mulberry32, rint } from './random.js?v=run1';
-import { panel, roundRect, drawSlice } from './hud.js?v=run1';
-import { drawCreature } from './art.js?v=run1';
-import { makeCreature } from './team.js?v=run1';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run2';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run2';
+import { mulberry32, rint } from './random.js?v=run2';
+import { panel, roundRect, drawSlice } from './hud.js?v=run2';
+import { drawCreature } from './art.js?v=run2';
+import { makeCreature } from './team.js?v=run2';
 
 // ------------------------------------------------------------------ data
-export const INK = '#3b2c17', INK_SUB = '#6d5b3c'; // readable on light parchment UI slices
 export const BUILTIN_TRAINERS = [
   { id: 'ranger', name: 'Moss Ranger', element: 'Verdant',
     passive: { on: 'victory', effect: { type: 'shield', amount: 6, target: 'grass', permanent: true } },
@@ -48,7 +47,7 @@ export function makeRun(seed, trainerId = null) {
   return {
     seed: seed >>> 0, rng,
     trainerId,                       // null = trainer-select pending
-    day: 1, hearts: 10, coins: 10, rank: 'Rookie',
+    day: 1, hearts: 10, coins: 20, rank: 'Rookie',
     board: [],                       // up to 6 creatures (order = position)
     trinkets: [],                    // owned {…}
     locked: false, shop: [],         // shop offers this Day
@@ -59,12 +58,26 @@ export function makeRun(seed, trainerId = null) {
   };
 }
 
+// Manus #331: effect types that need >= 1 monster on the board to do anything.
+// Engine types (applyItem) + the JSON-side aliases from Hermes #314.
+// reroll_free_once (Voucher) is deliberately NOT here — it works on an empty board.
+const BOARD_TARGETED_EFFECTS = new Set([
+  'heal_board', 'buff', 'damage_next', 'shield', 'element2', 'shield_next',
+  'damage_random', 'add_element',
+]);
+const needsBoardTarget = (offer) => offer && offer.kind === 'item'
+  && BOARD_TARGETED_EFFECTS.has((offer.effect || {}).type);
+
 const shopFor = (run) => {
   const rng = run.rng;
   const items = [];
   const foolGold = run.trinkets.some((t) => t.id === 'fools_gold');
   // Fool's Gold: shop stops stocking items entirely (pool filtered to monsters).
-  const pool = foolGold ? BUILTIN_SHOP.filter((s) => s.kind !== 'item') : BUILTIN_SHOP;
+  // Manus #331: board-targeted items are never offered while the board is empty —
+  // buying one then is a wasted purchase (applyItem no-ops with no target).
+  const base = foolGold ? BUILTIN_SHOP.filter((s) => s.kind !== 'item') : BUILTIN_SHOP;
+  const filtered = run.board.length ? base : base.filter((s) => !needsBoardTarget(s));
+  const pool = filtered.length ? filtered : base; // never crash on an empty pool
   for (let i = 0; i < 4; i++) {
     const s = pool[Math.floor(rng() * pool.length)];
     if (s.kind === 'item') { items.push({ ...s }); continue; }
@@ -89,9 +102,8 @@ export function freeRerolls(run) {
 export function buy(run, i) {
   const offer = run.shop[i]; if (!offer) return 'empty slot';
   if (run.coins < offer.cost) return 'not enough coins';
+  if (needsBoardTarget(offer) && !run.board.length) return 'needs a monster on the board'; // Manus #331: belt-and-braces (board emptied after the shop was generated)
   if (offer.kind === 'item') {
-    const t = (offer.effect || {}).type;
-    if (!run.board.length && (t === 'heal_board' || t === 'buff' || t === 'damage_next' || t === 'shield' || t === 'element2')) return 'buy a monster before using this item';
     run.coins -= offer.cost;
     run.shop[i] = null;
     applyItem(run, offer);
@@ -282,7 +294,7 @@ export async function loadData() {
   } catch { return false; }
 }
 
-export function chooseTrainer(run, id) { run.trainerId = id; run.phase = 'shop'; run.coins = 12; rollShop(run); }
+export function chooseTrainer(run, id) { run.trainerId = id; run.phase = 'shop'; run.coins = 20; rollShop(run); }
 
 // ------------------------------------------------------------- reward step
 /** After a won battle: income + trinket choice (every win) staged into run.reward. */
@@ -299,7 +311,7 @@ export function stageReward(run, won) {
   } else {
     run.streak = 0;
     run.hearts -= 1;
-    run.reward = { gain: 2, trinkets: [], trinketChosen: true };
+    run.reward = { gain: 4, trinkets: [], trinketChosen: true };
   }
   run.phase = 'reward';
 }
@@ -351,13 +363,13 @@ export function drawRun(ctx, run, t, mouse) {
   ctx.textAlign = 'left';
   // top bar: day / hearts / coins / rank
   drawSlice(ctx, 'day_banner', 14, 12, 150, 44, 14, 0.9);
-  ctx.font = 'bold 26px monospace'; ctx.fillStyle = INK;
+  ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#3b2c17';
   ctx.fillText(`DAY ${run.day}${run.endless ? ' ∞' : ''}`, 24, 44);
   heartsRow(ctx, 190, 44, run);
   drawSlice(ctx, 'coin_icon', VIEW_W - 196, 24, 22, 22, 6, 1);
-  ctx.font = 'bold 22px monospace'; ctx.fillStyle = INK;
+  ctx.font = 'bold 22px monospace'; ctx.fillStyle = '#3b2c17';
   ctx.fillText(`⬤ ${run.coins}`, VIEW_W - 170, 44);
-  ctx.font = '14px monospace'; ctx.fillStyle = INK_SUB;
+  ctx.font = '14px monospace'; ctx.fillStyle = '#6d5b3c';
   ctx.fillText(run.rank, 24, 68);
 
   if (run.phase === 'trainer') return drawTrainerSelect(ctx, run, t, mouse);
@@ -373,14 +385,15 @@ function button(ctx, b, label, hot, sub) {
     roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
     ctx.strokeStyle = hot ? '#ffd26a' : '#6f8f7d'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
   }
-  ctx.fillStyle = INK; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label, b.x + b.w / 2, b.y + (sub ? 26 : b.h / 2 + 6));
-  if (sub) { ctx.font = '12px monospace'; ctx.fillStyle = INK_SUB; ctx.fillText(sub, b.x + b.w / 2, b.y + 48); }
+  if (sub) { ctx.font = '12px monospace'; ctx.fillStyle = '#6d5b3c'; ctx.fillText(sub, b.x + b.w / 2, b.y + 48); }
   ctx.textAlign = 'left';
 }
 
 function drawTrainerSelect(ctx, run, t, mouse) {
-  ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
+  run._btns = []; // rebuild the hit list every frame (same fix as drawReward)
+  ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
   ctx.fillText('PICK YOUR TRAINER', VIEW_W / 2, 110); ctx.textAlign = 'left';
   const W = 320, GAP = 36, X0 = (VIEW_W - (W * 3 + GAP * 2)) / 2, Y = 160;
   BUILTIN_TRAINERS.forEach((tr, i) => {
@@ -395,9 +408,9 @@ function drawTrainerSelect(ctx, run, t, mouse) {
     ctx.save(); ctx.translate(b.x + b.w / 2, b.y + 120); ctx.scale(1.5, 1.5);
     drawCreature(ctx, tr.element === 'Ember' ? 'embercub' : tr.element === 'Volt' ? 'voltip' : 'leaflet', 0, 0, t + i * 2, 'idle');
     ctx.restore();
-    ctx.textAlign = 'center'; ctx.fillStyle = INK; ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center'; ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 22px monospace';
     ctx.fillText(tr.name, b.x + b.w / 2, b.y + 220);
-    ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
+    ctx.font = '13px monospace'; ctx.fillStyle = '#6d5b3c';
     wrap(ctx, tr.text, b.x + b.w / 2, b.y + 246, b.w - 30, 17);
     ctx.textAlign = 'left';
   });
@@ -414,7 +427,7 @@ function wrap(ctx, text, cx, y, maxW, lh) {
 
 function drawShop(ctx, run, t, mouse) {
   run._btns = [];
-  ctx.fillStyle = INK_SUB; ctx.font = '15px monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#6d5b3c'; ctx.font = '15px monospace'; ctx.textAlign = 'center';
   ctx.fillText('build your board — 3 same monsters merge to ★★ · max 6 · then BATTLE', VIEW_W / 2, 92);
   ctx.textAlign = 'left';
 
@@ -431,27 +444,27 @@ function drawShop(ctx, run, t, mouse) {
       ctx.strokeStyle = offer ? EL_COLOR(offer.species) : '#556'; ctx.lineWidth = 2; ctx.stroke();
     }
     if (offer && offer.kind === 'item') {
-      ctx.fillStyle = INK; ctx.font = 'bold 15px monospace';
+      ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 15px monospace';
       ctx.fillText(offer.name || 'Item', b.x + 16, b.y + 34);
-      ctx.font = '12px monospace'; ctx.fillStyle = INK_SUB;
+      ctx.font = 'bold 12px monospace'; ctx.fillStyle = '#6d5b3c';
       wrapLeft(ctx, offer.text || 'one-shot boost', b.x + 16, b.y + 54, b.w - 90, 15);
-      ctx.fillStyle = INK; ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 16px monospace';
       ctx.fillText(`⬤ ${offer.cost}`, b.x + 88, b.y + 80);
     } else if (offer) {
       ctx.save(); ctx.translate(b.x + 44, b.y + 46); ctx.scale(0.62, 0.62);
       drawCreature(ctx, offer.species, 0, 0, t + i, 'idle'); ctx.restore();
-      ctx.fillStyle = INK; ctx.font = 'bold 15px monospace';
+      ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 15px monospace';
       ctx.fillText(SPECIES[offer.species].name, b.x + 88, b.y + 40);
-      ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
+      ctx.font = 'bold 13px monospace'; ctx.fillStyle = '#6d5b3c';
       ctx.fillText(`Lv ${offer.lvl} · ${SPECIES[offer.species].element}`, b.x + 88, b.y + 60);
-      ctx.fillStyle = INK; ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 16px monospace';
       ctx.fillText(`⬤ ${offer.cost}`, b.x + 88, b.y + 80);
     }
     ctx.globalAlpha = 1;
   });
 
   // board
-  ctx.fillStyle = INK; ctx.font = 'bold 18px monospace';
+  ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 18px monospace';
   ctx.fillText(`BOARD ${run.board.length}/6`, X0, 260);
   const BW = 148, BH = 150;
   run.board.forEach((c, i) => {
@@ -462,24 +475,24 @@ function drawShop(ctx, run, t, mouse) {
     ctx.strokeStyle = EL_COLOR(c.species); ctx.lineWidth = 2; ctx.stroke();
     ctx.save(); ctx.translate(b.x + 52, b.y + 60); ctx.scale(0.7, 0.7);
     drawCreature(ctx, c.species, 0, 0, t + i * 1.7, 'idle'); ctx.restore();
-    ctx.fillStyle = INK; ctx.font = 'bold 13px monospace';
+    ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 13px monospace';
     ctx.fillText(`${'★'.repeat(c.stars || 1)} Lv${c.level}`, b.x + 10, b.y + 112);
-    ctx.font = '11px monospace'; ctx.fillStyle = INK_SUB;
+    ctx.font = '11px monospace'; ctx.fillStyle = '#6d5b3c';
     ctx.fillText(`${c.stats.hp}hp ${c.stats.atk}atk`, b.x + 10, b.y + 128);
-    ctx.font = 'bold 11px monospace';
+    ctx.font = 'bold 12px monospace'; ctx.fillStyle = '#6d5b3c';
     ctx.fillText(SPECIES[c.species].name, b.x + 10, b.y + 142);
   });
-  if (run.mergeTrinketPending) { ctx.fillStyle = INK; ctx.font = 'bold 14px monospace'; ctx.fillText('★ MERGE BONUS: pick a trinket below', X0, 452); }
+  if (run.mergeTrinketPending) { ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 14px monospace'; ctx.fillText('★ MERGE BONUS: pick a trinket below', X0, 452); }
 
   // trinket strip
   drawSlice(ctx, 'trinket_bar', X0 - 6, 456, SW * 4 + 42, 44, 12, 0.9);
-  ctx.fillStyle = INK_SUB; ctx.font = 'bold 13px monospace';
+  ctx.fillStyle = '#6d5b3c'; ctx.font = 'bold 13px monospace';
   ctx.fillText('TRINKETS:', X0, 480);
   run.trinkets.forEach((tr, i) => {
     const b = { x: X0 + 90 + i * 118, y: 462, w: 112, h: 30 };
     ctx.fillStyle = 'rgba(255,209,106,.12)'; roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
     ctx.strokeStyle = '#c8a355'; ctx.stroke();
-    ctx.fillStyle = INK; ctx.font = '11px monospace'; ctx.fillText(tr.name, b.x + 8, b.y + 19);
+    ctx.fillStyle = '#3b2c17'; ctx.font = '11px monospace'; ctx.fillText(tr.name, b.x + 8, b.y + 19);
   });
 
   // merge bonus picker shares the reward row if pending
@@ -508,7 +521,7 @@ function drawShop(ctx, run, t, mouse) {
 }
 
 function drawTrinketRow(ctx, run, mouse, list, label) {
-  ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label.toUpperCase(), VIEW_W / 2, 640); ctx.textAlign = 'left';
   const W = 300, X0 = (VIEW_W - W * list.length - 20 * (list.length - 1)) / 2;
   list.forEach((tr, i) => {
@@ -518,8 +531,8 @@ function drawTrinketRow(ctx, run, mouse, list, label) {
     ctx.fillStyle = hot ? 'rgba(255,209,106,.16)' : 'rgba(255,255,255,.05)';
     roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
     ctx.strokeStyle = '#c8a355'; ctx.lineWidth = hot ? 2.5 : 1.5; ctx.stroke();
-    ctx.fillStyle = '#ffe9b1'; ctx.font = 'bold 16px monospace'; ctx.fillText(tr.name, b.x + 14, b.y + 30);
-    ctx.fillStyle = '#9fb8a6'; ctx.font = '12px monospace';
+    ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 16px monospace'; ctx.fillText(tr.name, b.x + 14, b.y + 30);
+    ctx.fillStyle = '#6d5b3c'; ctx.font = '12px monospace';
     ctx.save(); ctx.beginPath(); ctx.rect(b.x + 10, b.y + 38, b.w - 20, b.h - 44); ctx.clip();
     wrapLeft(ctx, tr.text, b.x + 14, b.y + 56, b.w - 28, 15); ctx.restore();
   });
@@ -534,14 +547,19 @@ function wrapLeft(ctx, text, x, y, maxW, lh) {
 }
 
 function drawReward(ctx, run, mouse) {
-  run._btns = run._btns || [];
+  // FIX (stuck NEXT DAY): rebuild the hit list every frame. drawShop resets
+  // run._btns, but drawReward kept it — so the previous shop frame's board
+  // buttons (y 280-430) stayed registered and shadowed the NEXT DAY button
+  // (x 510-770, y 300-360). hitRun returns the FIRST match, so a click on
+  // NEXT DAY hit board:2/3/4 first and SOLD that monster instead of advancing.
+  run._btns = [];
   const r = run.reward;
   ctx.textAlign = 'center';
   ctx.font = 'bold 34px monospace'; ctx.fillStyle = r.gain > 0 ? '#8ef2a0' : '#ff9d6a';
   ctx.fillText(r.trinkets.length ? 'VICTORY!' : 'DEFEAT…', VIEW_W / 2, 140);
-  ctx.font = 'bold 20px monospace'; ctx.fillStyle = '#ffd26a';
+  ctx.font = 'bold 20px monospace'; ctx.fillStyle = '#3b2c17';
   ctx.fillText(`+⬤ ${r.gain}`, VIEW_W / 2, 178);
-  ctx.font = '15px monospace'; ctx.fillStyle = '#9fd8c8';
+  ctx.font = '15px monospace'; ctx.fillStyle = '#6d5b3c';
   ctx.fillText(r.trinkets.length ? `${run.hearts} hearts left · streak ${run.streak}` : 'you lost a heart', VIEW_W / 2, 204);
   ctx.textAlign = 'left';
   if (r.trinkets.length && !r.trinketChosen) {
@@ -555,7 +573,8 @@ function drawReward(ctx, run, mouse) {
 }
 
 function drawChampion(ctx, run, mouse) {
-  run._btns = run._btns || [];
+  // FIX: same stale-button shadowing as drawReward — rebuild the hit list.
+  run._btns = [];
   ctx.textAlign = 'center'; ctx.font = 'bold 40px monospace'; ctx.fillStyle = '#ffe9b1';
   ctx.fillText('★ YOU ARE A QUILT CHAMPION ★', VIEW_W / 2, 260);
   ctx.font = '18px monospace'; ctx.fillStyle = '#8ef2a0';
@@ -570,7 +589,8 @@ function drawChampion(ctx, run, mouse) {
 }
 
 function drawOver(ctx, run, mouse) {
-  run._btns = run._btns || [];
+  // FIX: same stale-button shadowing as drawReward — rebuild the hit list.
+  run._btns = [];
   ctx.textAlign = 'center'; ctx.font = 'bold 36px monospace'; ctx.fillStyle = '#ff9d6a';
   ctx.fillText('RUN OVER', VIEW_W / 2, 250);
   ctx.font = '18px monospace'; ctx.fillStyle = '#9fd8c8';

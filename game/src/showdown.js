@@ -1,23 +1,23 @@
 // showdown.js — realtime auto-battler engine (team-formation idler genre).
-// Two squads (player right, wild/boss left) stand in 2-row x 3-col formations.
+// Two squads (player left, wild/boss right) stand in 2-row x 3-col formations.
 // Combat runs itself: every unit charges an action bar (speed-dependent);
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run1';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run1';
-import { makeCreature, giveXp } from './team.js?v=run1';
-import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run1';
-import { battleBg, drawBattleBg } from './bg.js?v=run1';
-import { panel, roundRect } from './hud.js?v=run1';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run2';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run2';
+import { makeCreature, giveXp } from './team.js?v=run2';
+import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run2';
+import { battleBg, drawBattleBg } from './bg.js?v=run2';
+import { panel, roundRect } from './hud.js?v=run2';
 
 const R = () => Math.random();
 
 // Ghibli PNG loader (own cache, smaller draw size for squad members)
 const artCache = new Map();
 const HAS_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite']);
-function unitArt(ctx, speciesId, cx, cy, pose, size, t = 0) {
-  if (drawQuilt(ctx, speciesId, cx, cy, pose, size, t)) return true;
+function unitArt(ctx, speciesId, cx, cy, pose, size, t = 0, flip = false) {
+  if (drawQuilt(ctx, speciesId, cx, cy, pose, size, t, flip)) return true;
   if (!HAS_ART.has(speciesId)) return false;
   let img = artCache.get(speciesId);
   if (img === undefined) {
@@ -30,6 +30,7 @@ function unitArt(ctx, speciesId, cx, cy, pose, size, t = 0) {
   if (!img || img === false || !img.naturalWidth) return false;
   ctx.save();
   ctx.translate(cx, cy);
+  if (flip) ctx.scale(-1, 1);
   if (pose === 'defeat') { ctx.globalAlpha = 0.45; ctx.translate(0, size * 0.12); }
   ctx.fillStyle = 'rgba(0,0,0,.28)';
   ctx.beginPath(); ctx.ellipse(0, size * 0.42, size * 0.4, size * 0.08, 0, 0, 7); ctx.fill();
@@ -49,6 +50,7 @@ export class Unit {
     this.scared = false;        // dread proc: skipped next action
     this.fx = null;             // {kind:'attack'|'hurt', t}
     this.skillFx = null;        // {kind:<ability>, t} — quilt skill flash
+    this.koFx = null;           // {t} — KO pop/fade timer (set by faint)
     this.ability = creature.ability || abilityForSpecies(SPECIES[creature.species]) || null;
     this.kindle = false;        // set by an ally's kindle at battle start
   }
@@ -89,7 +91,7 @@ export class Showdown {
     const run = this._run; if (!run) return;
     const has = (type) => run.trinkets.filter((x) => (x.effect || {}).type === type);
     for (const t of has('column_spd')) {
-      for (const u of this.squad('player')) if (u.slot >= 4) u.intervalMult = 1 - (t.effect.value || 0.15);
+      for (const u of this.squad('player')) if (u.slot < 2) u.intervalMult = 1 - (t.effect.value || 0.15); // right-hand col = front col (slots 0-1) on the left side
     }
     for (const t of has('shield')) {
       const front = this.squad('player').sort((a, b) => a.slot - b.slot)[0];
@@ -124,7 +126,7 @@ export class Showdown {
   slotPos(side, slot) {
     // Front column sits nearest the centre; extra columns march backward.
     const col = Math.floor(slot / 2), row = slot % 2;
-    const x = side === 'enemy' ? 470 - col * 170 : 810 + col * 170;
+    const x = side === 'player' ? 560 - col * 180 : 720 + col * 180;
     const y = (row === 0 ? 340 : 545) + (col === 1 ? -12 : 0);
     return { x, y };
   }
@@ -135,6 +137,7 @@ export class Showdown {
     this.t += dt;
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 6);
     this.pops = this.pops.filter((p) => (p.t -= dt) > 0);
+    for (const u of this.units) if (u.koFx && (u.koFx.t -= dt) <= 0) u.koFx = null;
     if (this.captureFail > 0) this.captureFail -= dt;
 
     if (this.phase === 'vs') {
@@ -226,14 +229,14 @@ export class Showdown {
     this.shake = Math.min(1, this.shake + 0.35);
     const tp = this.posOf(target);
     if (target.shieldFx) { this.pop(tp.x, tp.y - 58, `⛨${target.shieldFx}`, '#8ecbff', 1); target.shieldFx = 0; }
-    const col = crit ? '#ffd24a' : (u.side === 'player' ? '#ff6a5a' : '#ff9d6a');
-    this.pop(tp.x + (R() * 30 - 15), tp.y - 34, (crit ? '✦' : '') + dmg, col, crit ? 1.8 : 1.15);
+    // damage numbers: white normal / yellow big crit, float up + fade in ~600ms
+    this.pop(tp.x + (R() * 30 - 15), tp.y - 34, (crit ? '✦' : '') + dmg, crit ? '#ffd24a' : '#ffffff', crit ? 0.9 : 0.6, crit);
     if (eff > 1) this.pop(tp.x, tp.y - 72, 'SUPER!', '#8ef2a0', 1);
     // Ember Thread: ember moves leave a burn tick; trainer bonusBurn adds to any fire attacker
     const burnAmt = (atkEl === 'Ember' ? (this.burnOnCast || 0) : 0) + (u.c.bonusBurn || 0);
     if (burnAmt > 0 && target.alive && mv.power > 0) {
       target.c.hp = Math.max(0, target.c.hp - burnAmt);
-      this.pop(tp.x, tp.y - 48, `🔥${burnAmt}`, '#ffb15a', 1);
+      this.pop(tp.x, tp.y - 48, `🔥${burnAmt}`, '#ffb15a', 0.6);
       if (target.c.hp <= 0) this.faint(target);
     }
     // Double Needle: multicast ally repeats the strike once
@@ -264,7 +267,7 @@ export class Showdown {
   }
 
   faint(u) {
-    u.alive = false; u.charge = 0; u.fx = null;
+    u.alive = false; u.charge = 0; u.fx = null; u.koFx = { t: 0.5 };
     const p = this.posOf(u);
     this.pop(p.x, p.y - 30, 'DOWN', '#d8d8d8', 1.4);
   }
@@ -279,7 +282,7 @@ export class Showdown {
     }
   }
 
-  pop(x, y, text, color, life = 1) { this.pops.push({ x, y, text, color, t: life, big: life >= 1.4 }); }
+  pop(x, y, text, color, life = 1, big = life >= 1.4) { this.pops.push({ x, y, text, color, t: life, big }); }
 
   // ---- player steering -----------------------------------------------------
   toggleSpeed() { this.speed = this.speed >= 4 ? 1 : this.speed * 2; }
@@ -352,13 +355,57 @@ export function drawShowdown(ctx, sd, t) {
     const p = sd.posOf(u);
     const size = u.leader || u.sp.boss ? 150 : 118;
     const pose = !u.alive ? 'defeat' : u.fx && u.fx.kind === 'attack' ? 'attack' : u.fx && u.fx.kind === 'hurt' ? 'hurt' : 'idle';
-    const bounced = pose === 'attack' ? (u.side === 'player' ? -14 : 14) : 0;
-    if (!unitArt(ctx, u.c.species, p.x + bounced, p.y, pose, size, t)) {
-      ctx.save();
-      ctx.translate(p.x + bounced, p.y);
-      ctx.scale(size / 160, size / 160);
+    const flip = u.side === 'enemy'; // enemies face left toward the player; player faces right
+    // attack lunge: ~40px toward the target, out in ~120ms then back (fx lasts 0.4s)
+    let bounced = 0;
+    if (pose === 'attack' && u.fx) {
+      const prog = 1 - u.fx.t / 0.4;
+      const k = prog < 0.3 ? prog / 0.3 : 1 - (prog - 0.3) / 0.7;
+      bounced = (u.side === 'player' ? 1 : -1) * 40 * Math.max(0, k);
+    }
+    // hurt shake: small jitter while the hit lands
+    const jx = pose === 'hurt' ? (Math.random() * 6 - 3) : 0;
+    const jy = pose === 'hurt' ? (Math.random() * 4 - 2) : 0;
+    const drawX = p.x + bounced + jx, drawY = p.y + jy;
+    // cast glow behind the attacker
+    if (pose === 'attack' && u.fx) {
+      const gk = Math.max(0, u.fx.t / 0.4);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.45 * gk;
+      ctx.fillStyle = ELEMENT_COLORS[u.sp.element].glow;
+      ctx.beginPath(); ctx.ellipse(drawX, drawY, size * 0.72, size * 0.55, 0, 0, 7); ctx.fill(); ctx.restore();
+    }
+    // KO pop + fade: scale up to ~1.2x, then settle with a burst ring
+    let koScale = 1, koAlpha = 1;
+    if (u.koFx) {
+      const kp = 1 - u.koFx.t / 0.5;
+      koScale = kp < 0.3 ? 1 + 0.2 * (kp / 0.3) : 1.2 - 0.2 * ((kp - 0.3) / 0.7);
+      koAlpha = kp < 0.3 ? 1 : 1 - 0.55 * ((kp - 0.3) / 0.7);
+    }
+    ctx.save();
+    ctx.translate(drawX, drawY); ctx.scale(koScale, koScale); ctx.globalAlpha = koAlpha;
+    if (!unitArt(ctx, u.c.species, 0, 0, pose, size, t, flip)) {
+      ctx.scale((size / 160) * (flip ? -1 : 1), size / 160);
       drawCreature(ctx, u.c.species, 0, 0, t + u.slot * 3, pose);
-      ctx.restore();
+    }
+    ctx.restore();
+    // KO burst ring (expands + fades during the settle phase)
+    if (u.koFx) {
+      const kp = 1 - u.koFx.t / 0.5;
+      if (kp >= 0.3) {
+        const bk = (kp - 0.3) / 0.7;
+        ctx.save(); ctx.globalAlpha = 0.6 * (1 - bk);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(p.x, p.y, size * (0.4 + bk * 0.7), 0, 7); ctx.stroke(); ctx.restore();
+      }
+    }
+    // white hit-flash while the hurt fx is fresh (first ~150ms)
+    if (pose === 'hurt' && u.fx) {
+      const flash = Math.max(0, (u.fx.t - 0.2) / 0.15);
+      if (flash > 0) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5 * flash;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, size * 0.55, size * 0.5, 0, 0, 7); ctx.fill(); ctx.restore();
+      }
     }
 
     // skill effect flash (Monspec1 quilt FX)
@@ -436,13 +483,13 @@ function drawVsCard(ctx, sd) {
   const W = VIEW_W, H = VIEW_H;
   const k = Math.min(1, (1.8 - sd.vsT) * 3);
   ctx.fillStyle = '#0b0f0d'; ctx.fillRect(0, 0, W, H);
-  // diagonal split: player colour right, enemy colour left
+  // diagonal split: player colour left, enemy colour right
   const pc = ELEMENT_COLORS[SPECIES[sd.units.find(u=>u.side==='player')?.c.species || 'emberling'].element];
   const es = sd.units.find(u=>u.side==='enemy');
   const ec = ELEMENT_COLORS[es ? SPECIES[es.c.species].element : 'Gloom'];
   ctx.save(); ctx.translate(W / 2, 0); ctx.rotate(-0.12);
-  ctx.fillStyle = ec.dark; ctx.fillRect(-W / 2 - 80, -100, W / 2 + 80, H + 200);
-  ctx.fillStyle = pc.dark; ctx.fillRect(0, -100, W / 2 + 80, H + 200);
+  ctx.fillStyle = pc.dark; ctx.fillRect(-W / 2 - 80, -100, W / 2 + 80, H + 200);
+  ctx.fillStyle = ec.dark; ctx.fillRect(0, -100, W / 2 + 80, H + 200);
   // speed lines
   ctx.globalAlpha = 0.25;
   for (let i = 0; i < 14; i++) {
@@ -458,8 +505,8 @@ function drawVsCard(ctx, sd) {
     list.forEach((u, i) => {
       const p = { x: x + dir * (i % 3) * 120, y: 300 + Math.floor(i / 3) * 180 };
       ctx.save(); ctx.globalAlpha = k;
-      if (!unitArt(ctx, u.c.species, p.x, p.y, 'idle', 100, sd.t)) {
-        ctx.translate(p.x, p.y); ctx.scale(0.7, 0.7); drawCreature(ctx, u.c.species, 0, 0, sd.t, 'idle');
+      if (!unitArt(ctx, u.c.species, p.x, p.y, 'idle', 100, sd.t, side === 'enemy')) {
+        ctx.translate(p.x, p.y); ctx.scale(0.7 * (side === 'enemy' ? -1 : 1), 0.7); drawCreature(ctx, u.c.species, 0, 0, sd.t, 'idle');
       }
       ctx.restore();
     });
@@ -467,7 +514,7 @@ function drawVsCard(ctx, sd) {
     ctx.fillStyle = '#e8f2e4';
     ctx.fillText(side === 'player' ? 'YOUR SQUAD' : 'WILD SQUAD', x + dir * 110, 520);
   };
-  ctx.save(); ctx.globalAlpha = k; drawSide('enemy', 250, 1); drawSide('player', W - 250, -1); ctx.restore();
+  ctx.save(); ctx.globalAlpha = k; drawSide('player', 250, 1); drawSide('enemy', W - 250, -1); ctx.restore();
   // VS stamp
   ctx.save();
   ctx.translate(W / 2, H / 2 - 60);
