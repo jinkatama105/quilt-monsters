@@ -373,9 +373,11 @@ function updateRun() {
     saveGame(state); return;
   }
   if (id === 'reroll') {
-    const cost = freeRerolls(run) > 0 ? 0 : 3;
+    const freeLeft = Math.max(0, freeRerolls(run) - (run._freeUsed || 0)) + (run.voucher || 0);
+    const cost = freeLeft > 0 ? 0 : 3;
     if (run.coins < cost) { run._msg = 'not enough coins'; return; }
-    run.coins -= cost; if (freeRerolls(run) > 0) run._freeUsed = (run._freeUsed || 0) + 1;
+    run.coins -= cost;
+    if (freeLeft > 0) { if (run.voucher > 0) run.voucher -= 1; else run._freeUsed = (run._freeUsed || 0) + 1; } // arcade_coins capped per Day; Voucher consumed on use
     run.mergeTrinkets = null; rollShop(run); saveGame(state); return;
   }
   if (id.startsWith('lock:')) { run.locked = !run.locked; saveGame(state); return; }
@@ -403,6 +405,7 @@ function startRunBattle(run) {
   const opp = makeOpponent(run);
   const playerUnits = run.board.filter((c) => c.hp > 0);
   if (!playerUnits.length) { run.phase = 'shop'; return; }
+  applyPassive(run, true, 'battleStart'); // e.g. Bimo: boost before every fight
   if (run.itemShield) { // one-shot shield from shop items: leftmost +HP, consumed now
     const first = playerUnits[0];
     first.stats = { ...first.stats, hp: first.stats.hp + run.itemShield };
@@ -414,6 +417,7 @@ function startRunBattle(run) {
   sd.zone = ['moss', 'cliff', 'temple'][run.day % 3];
   sd.opponentName = opp.name;
   sd._run = run;
+  sd.trinketFx(); // constructor ran before _run existed; fire trinket hooks now
   state.battle = sd;
   run.phase = 'battle';
   state.mode = 'battle';
@@ -426,7 +430,7 @@ function finishRunBattle(b) {
   state.mode = 'run';
   const won = b.winner === 'player';
   // heal board for the next fight (hp ticks are per-run-resource, hearts are the real loss)
-  for (const c of run.board) { c.hp = c.stats.hp; }
+  for (const c of run.board) { c.hp = c.stats.hp; c.tempDmg = 0; c.multicast = 0; } // Honey Cake / Double Needle: next-battle-only effects expire
   run.board = run.board.filter((c) => c.hp > 0); // KO'd monsters survive (auto-battler: board persists; keep all)
   if (won) applyPassive(run, true);
   stageReward(run, won);

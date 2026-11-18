@@ -80,7 +80,28 @@ export class Showdown {
     this.shake = 0;
     this.xpGained = 0;
     this.captureFail = 0;       // wobble animation timer on a caught ball
+    this.trinketFx();
     this.kindleCheck();
+  }
+
+  /** Run-mode trinket hooks: column_spd (act faster), shield (front monster stacks), burn_on_cast (Ember ticks), multicast (one ally double-strikes). */
+  trinketFx() {
+    const run = this._run; if (!run) return;
+    const has = (type) => run.trinkets.filter((x) => (x.effect || {}).type === type);
+    for (const t of has('column_spd')) {
+      for (const u of this.squad('player')) if (u.slot >= 4) u.intervalMult = 1 - (t.effect.value || 0.15);
+    }
+    for (const t of has('shield')) {
+      const front = this.squad('player').sort((a, b) => a.slot - b.slot)[0];
+      if (front) front.c.shield = (front.c.shield || 0) + (t.effect.value || 4);
+    }
+    this.burnOnCast = has('burn_on_cast').reduce((a, t) => a + (t.effect.value || 2), 0);
+    const mc = has('multicast');
+    if (mc.length) {
+      const pool = this.squad('player').filter((u) => u.alive);
+      const pick = pool[Math.floor(R() * pool.length)];
+      if (pick) pick.c.multicast = mc.reduce((a, t) => a + (t.effect.value || 1), 0);
+    }
   }
 
   kindleCheck() {
@@ -130,7 +151,7 @@ export class Showdown {
       if (u.fx && (u.fx.t -= g) <= 0) u.fx = null;
       if (u.skillFx && (u.skillFx.t -= g) <= 0) u.skillFx = null;
       if (!u.alive || u.scared) { if (u.scared && u.alive) { u.scared = false; u.charge = 0; } continue; }
-      u.charge += g / u.interval;
+      u.charge += g / (u.interval * (u.intervalMult || 1));
       if (u.charge >= 1) { u.charge = 0; this.act(u); }
     }
 
@@ -180,23 +201,47 @@ export class Showdown {
 
   strike(u, target, mv, mult) {
     const atkEl = u.sp.element, defEl = target.sp.element;
-    const eff = matchup(atkEl, defEl);
-    const stab = atkEl === mv.element ? 1.25 : 1;
+    let eff = matchup(atkEl, defEl);
+    // Rainbow Berry: second element also scores — take the better matchup
+    if (u.c.element2) eff = Math.max(eff, matchup(u.c.element2, defEl));
+    const stab = atkEl === mv.element || u.c.element2 === mv.element ? 1.25 : 1;
     let atk = u.c.stats.atk * (u.c.focused ? 1.6 : 1) * (u.kindle ? 1.18 : 1);
     u.c.focused = false;
     let def = target.c.stats.def * (target.ability === 'bulwark' ? 1.22 : 1);
     let dmg = Math.max(1, Math.round(((mv.power * stab * atk) / (def * 2)) * (0.85 + R() * 0.2) * mult * eff));
+    if (u.c.tempDmg) dmg += u.c.tempDmg; // Honey Cake: flat damage per hit (next battle only)
     let crit = false;
     if (u.ability === 'overload' && R() < 0.15) { crit = true; dmg = Math.round(dmg * 1.6); u.skillFx = { kind: 'overload', t: 0.7 }; }
     if (target.ability === 'bulwark' && R() < 0.3) target.skillFx = { kind: 'bulwark', t: 0.7 };
     if (R() < 0.06) dmg = Math.max(1, Math.round(dmg * 0.5)); // graze
+    // shield stacks (thimble trinket, trainer/item shields) absorb damage first
+    if (target.c.shield > 0) {
+      const back = Math.min(target.c.shield, dmg);
+      target.c.shield -= back;
+      dmg -= back;
+      target.shieldFx = back;
+    }
     target.c.hp = Math.max(0, target.c.hp - dmg);
     target.fx = { kind: 'hurt', t: 0.35 };
     this.shake = Math.min(1, this.shake + 0.35);
     const tp = this.posOf(target);
+    if (target.shieldFx) { this.pop(tp.x, tp.y - 58, `⛨${target.shieldFx}`, '#8ecbff', 1); target.shieldFx = 0; }
     const col = crit ? '#ffd24a' : (u.side === 'player' ? '#ff6a5a' : '#ff9d6a');
     this.pop(tp.x + (R() * 30 - 15), tp.y - 34, (crit ? '✦' : '') + dmg, col, crit ? 1.8 : 1.15);
     if (eff > 1) this.pop(tp.x, tp.y - 72, 'SUPER!', '#8ef2a0', 1);
+    // Ember Thread: ember moves leave a burn tick; trainer bonusBurn adds to any fire attacker
+    const burnAmt = (atkEl === 'Ember' ? (this.burnOnCast || 0) : 0) + (u.c.bonusBurn || 0);
+    if (burnAmt > 0 && target.alive && mv.power > 0) {
+      target.c.hp = Math.max(0, target.c.hp - burnAmt);
+      this.pop(tp.x, tp.y - 48, `🔥${burnAmt}`, '#ffb15a', 1);
+      if (target.c.hp <= 0) this.faint(target);
+    }
+    // Double Needle: multicast ally repeats the strike once
+    if (u.c.multicast > 0 && target.alive && mv.power > 0) {
+      u.c.multicast -= 1;
+      this.strike(u, target, mv, 0.7);
+      this.pop(this.posOf(u).x, this.posOf(u).y - 60, 'DOUBLE!', '#ffe14d', 1.2);
+    }
 
     // dread proc
     if (u.ability === 'dread' && target.alive && R() < 0.18) {

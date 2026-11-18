@@ -104,22 +104,46 @@ export function buy(run, i) {
   return null;
 }
 
-/** Item effects (shop.json kind:'item'). Types: heal_board, buff (stat on target 'all'|'lowest'|'leftmost'), shield_next (battle-start shield bonus). Unknown type = cosmetic, still consumable. */
+/** Item effects (shop.json kind:'item'). Engine types:
+ *  heal_board {value}                         +HP all board
+ *  buff {stat|mods[], value, target:all|lowest|leftmost|random}  permanent run stats (mods = list of {stat,value} for two-stat items)
+ *  damage_next {value, count}                 +flat damage per hit, N random board monsters, next battle only
+ *  shield {value}                             +shield stacks (absorb dmg in battle), leftmost
+ *  element2 {element}                         grant a second element (rainbow berry)
+ *  reroll_free_once                           next reroll is free (voucher)
+ *  Unknown type = cosmetic, still consumable. */
 function applyItem(run, offer) {
   const e = offer.effect || {};
+  const pickRandom = (n) => run.board.slice().sort(() => run.rng() - 0.5).slice(0, n);
   if (e.type === 'heal_board') {
-    run.board.forEach((c) => { c.hp = Math.min(c.maxHp, c.hp + (e.value || 10)); });
+    run.board.forEach((c) => { c.hp = Math.min(c.stats.hp, c.hp + (e.value || 10)); });
   } else if (e.type === 'buff') {
-    const stat = e.stat || 'atk';
+    const mods = Array.isArray(e.mods) ? e.mods : [{ stat: e.stat || 'atk', value: e.value || 1 }];
     let targets = run.board;
-    if (e.target === 'lowest') targets = [run.board.slice().sort((a, b) => a.stats[stat] - b.stats[stat])[0]].filter(Boolean);
+    if (e.target === 'lowest') targets = [run.board.slice().sort((a, b) => a.stats[(mods[0] || {}).stat || 'atk'] - b.stats[(mods[0] || {}).stat || 'atk'])[0]].filter(Boolean);
     if (e.target === 'leftmost') targets = run.board.length ? [run.board[0]] : [];
+    if (e.target === 'random') targets = pickRandom(1);
     targets.forEach((c) => {
-      c.stats[stat] = (c.stats[stat] || 0) + (e.value || 1);
-      if (stat === 'hp') { c.maxHp = c.stats.hp; c.hp = c.stats.hp; }
+      for (const m of mods) {
+        c.stats[m.stat] = (c.stats[m.stat] || 0) + (m.value || 0);
+        if (m.stat === 'hp') { c.maxHp = c.stats.hp; c.hp = c.stats.hp; }
+      }
     });
+  } else if (e.type === 'damage_next') {
+    pickRandom(e.count || 2).forEach((c) => { c.tempDmg = (c.tempDmg || 0) + (e.value || 5); });
+  } else if (e.type === 'shield') {
+    if (run.board.length) run.board[0].shield = (run.board[0].shield || 0) + (e.value || 2);
+  } else if (e.type === 'element2') {
+    const els = ['Ember', 'Verdant', 'Volt', 'Tide', 'Gloom'];
+    if (run.board.length) {
+      const c = pickRandom(1)[0];
+      const pool = els.filter((x) => x !== SPECIES[c.species].element); // never same as current element
+      c.element2 = e.element || pool[Math.floor(run.rng() * pool.length)];
+    }
+  } else if (e.type === 'reroll_free_once') {
+    run.voucher = (run.voucher || 0) + 1;
   } else if (e.type === 'shield_next') {
-    run.itemShield = (run.itemShield || 0) + (e.value || 4); // consumed at battle start in stageBattle
+    run.itemShield = (run.itemShield || 0) + (e.value || 4); // consumed at battle start in startRunBattle
   }
 }
 
@@ -202,11 +226,11 @@ export function runSnapshot(run) {
 }
 
 // -------------------------------------------------------------- trainer passive
-/** Fire the trainer passive after a victory. Mutates board permanently. */
-export function applyPassive(run, won) {
-  if (!won) return null;
+/** Fire the trainer passive. on:'victory' runs after a won battle; on:'battleStart' before each battle. Mutates board. */
+export function applyPassive(run, won, when = 'victory') {
   const tr = TRAINERS_BY_ID[run.trainerId]; if (!tr) return null;
-  const p = tr.passive; if (!p || p.on !== 'victory') return null;
+  const p = tr.passive; if (!p || p.on !== when) return null;
+  if (when === 'victory' && !won) return null;
   const e = p.effect;
   const elemMatch = { fire: 'Ember', grass: 'Verdant', electric: 'Volt', water: 'Tide', ghost: 'Gloom' }[e.target];
   let hits = 0;
@@ -217,9 +241,10 @@ export function applyPassive(run, won) {
     else if (e.type === 'spd') c.stats.spd += e.amount;
     else if (e.type === 'shield') c.shield = (c.shield || 0) + e.amount;
     else if (e.type === 'burn') c.bonusBurn = (c.bonusBurn || 0) + e.amount;
+    else if (e.type === 'extra_cast') c.multicast = (c.multicast || 0) + (e.amount || 1); // showdown strike() double-hits and consumes
     hits++;
   }
-  return hits ? `${tr.name}: ${hits} ally${hits > 1 ? 'ies' : ''} boosted` : null;
+  return hits ? `${tr.name}: ${hits} ${hits > 1 ? 'allies' : 'ally'} boosted` : null;
 }
 
 // live trainer table = JSON overlay (when data/trainers.json ships) merged over built-ins
@@ -288,6 +313,7 @@ export function nextDay(run) {
   run.day += 1; run.bestDay = Math.max(run.bestDay, run.day);
   if (run.day > 10) run.endless = true;
   run.locked = false;
+  run._freeUsed = 0; // arcade_coins free rerolls reset each Day
   if (!run.locked || !run.shop.some(Boolean)) rollShop(run);
   run.coins += dayIncome(run);
   run.phase = 'shop';
@@ -459,7 +485,7 @@ function drawShop(ctx, run, t, mouse) {
   }
 
   // action row
-  const rerollCost = freeRerolls(run) > 0 ? 0 : 3;
+  const rerollCost = (Math.max(0, freeRerolls(run) - (run._freeUsed || 0)) + (run.voucher || 0)) > 0 ? 0 : 3;
   const acts = [
     { id: 'reroll', x: VIEW_W / 2 - 330, label: `REROLL ⬤${rerollCost}` },
     { id: `lock:${run.locked ? 'off' : 'on'}`, x: VIEW_W / 2 - 120, label: run.locked ? '🔒 LOCKED' : 'LOCK' },
