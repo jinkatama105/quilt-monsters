@@ -4,7 +4,7 @@ export const VIEW_H = 800;
 
 export const TILE = 40;                 // field tile size in world pixels
 export const STEP_TIME = 0.17;          // seconds per tile walk (was 0.13 snap — too fast + foot sliding)
-export const PARTY_MAX = 3;             // creatures carried at once
+export const PARTY_MAX = 6;             // creatures deployed per skirmish (formation 2x3)
 export const MOVES_SHOWN = 4;           // moves a creature can bring to battle
 
 export const ENCOUNTER_CHANCE = 0.16;   // per step in tall grass

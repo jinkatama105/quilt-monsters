@@ -1,7 +1,7 @@
 // team.js — the player's party, inventory, stat growth and capture logic.
-import { SPECIES, MOVES, movesForSpecies } from './data.js?v=11';
-import { PARTY_MAX, XP_CURVE, STAT_GROWTH, CAPTURE } from './config.js?v=11';
-import { roll } from './random.js?v=11';
+import { SPECIES, MOVES, movesForSpecies, abilityForSpecies } from './data.js?v=12';
+import { PARTY_MAX, XP_CURVE, STAT_GROWTH, CAPTURE } from './config.js?v=12';
+import { roll } from './random.js?v=12';
 
 /** Build a fresh creature instance from a species id + level. */
 export function makeCreature(speciesId, level) {
@@ -18,6 +18,7 @@ export function makeCreature(speciesId, level) {
     hp: stats.hp,
     moves,
     focused: false,
+    ability: abilityForSpecies(sp),
   };
 }
 
@@ -85,11 +86,13 @@ export class TeamManager {
     this.dexSeen = new Set();
     this.dexCaught = new Set();
     this.captureCount = 0;
+    this.box = [];   // overflow roster beyond PARTY_MAX (kept, healed on spring)
   }
 
   addCreature(creature) {
     if (this.party.length < PARTY_MAX) { this.party.push(creature); return true; }
-    return false; // box overflow: stored outside the active party for now
+    this.box.push(creature); // box overflow: stored outside the active party
+    return true;
   }
 
   healPartyHalf() {
@@ -129,6 +132,7 @@ export class TeamManager {
   serialize() {
     return {
       party: this.party,
+      box: this.box,
       seedstones: this.seedstones,
       potions: this.potions,
       dexSeen: [...this.dexSeen],
@@ -141,6 +145,7 @@ export class TeamManager {
     const t = new TeamManager();
     if (!data) return t;
     t.party = data.party || [];
+    t.box = data.box || [];
     t.seedstones = data.seedstones ?? 5;
     t.potions = data.potions ?? 3;
     t.dexSeen = new Set(data.dexSeen || []);

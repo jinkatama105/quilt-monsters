@@ -3,12 +3,12 @@
 // world manifest. Zones: town, route, forest, cave, interior. Tall zones keep
 // random encounters, invisible boss markers keep the three Tribus missions,
 // NPCs block their tile and answer Enter.
-import { TILE, ENCOUNTER_CHANCE, HIDDEN_ITEM_CHANCE, STEP_TIME } from './config.js?v=11';
-import { WILD_TABLES, MISSIONS } from './data.js?v=11';
-import { GRIDS } from './mapdata.js?v=11';
-import { mulberry32, pickWeighted, roll, rint } from './random.js?v=11';
+import { TILE, ENCOUNTER_CHANCE, HIDDEN_ITEM_CHANCE, STEP_TIME } from './config.js?v=12';
+import { WILD_TABLES, MISSIONS } from './data.js?v=12';
+import { GRIDS } from './mapdata.js?v=12';
+import { mulberry32, pickWeighted, roll, rint } from './random.js?v=12';
 
-export { T } from './config.js?v=11';
+export { T } from './config.js?v=12';
 
 const ZDEF = {
   town:     { map: 'ghibli-map-town.png',      encounter: false, name: 'Verdant Town' },

@@ -1,9 +1,9 @@
 // save.js — localStorage autosave that degrades gracefully when storage is
 // blocked (private mode, sandboxed iframes): every call is wrapped, nothing
 // outside the save format may throw.
-import { SPECIES } from './data.js?v=11';
-import { TeamManager } from './team.js?v=11';
-import { World } from './world.js?v=11';
+import { SPECIES } from './data.js?v=12';
+import { TeamManager } from './team.js?v=12';
+import { World } from './world.js?v=12';
 
 const KEY = 'verdant-s...e-v1';
 

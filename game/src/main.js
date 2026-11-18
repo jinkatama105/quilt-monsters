@@ -1,18 +1,26 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=11';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=11';
-import { Input } from './input.js?v=11';
-import { World } from './world.js?v=11';
-import { TeamManager, makeCreature } from './team.js?v=11';
-import { startBattle } from './battle.js?v=11';
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=11';
-import { drawFieldHud, panel } from './hud.js?v=11';
-import { PALETTE } from './config.js?v=11';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=12';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=12';
+import { Input } from './input.js?v=12';
+import { World } from './world.js?v=12';
+import { TeamManager, makeCreature } from './team.js?v=12';
+import { startBattle } from './battle.js?v=12';
+import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons } from './showdown.js?v=12';
+import { wildSquad, bossSquad } from './data.js?v=12';
+
+// Showdown mode (realtime auto-battler) is the default
+// battle engine. Append ?classic=1 to the URL (or set localStorage
+// vs-classic='1') to fall back to the old turn-based duel. See README.
+const SHOWDOWN = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
+
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=12';
+import { drawFieldHud, panel } from './hud.js?v=12';
+import { PALETTE } from './config.js?v=12';
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=11';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=11';
-import { saveGame, loadGame, canSave } from './save.js?v=11';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=12';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=12';
+import { saveGame, loadGame, canSave } from './save.js?v=12';
 
 const canvas = document.getElementById('game');
 canvas.width = VIEW_W; canvas.height = VIEW_H;
@@ -100,7 +108,33 @@ function debugStart() {
 
 function startEncounterBattle(enemy, kind, mission = null) {
   if (!state.team.firstAlive()) return;
+  if (SHOWDOWN) {
+    // squad-vs-squad auto battle. `enemy` is the lead creature; escorts are rolled.
+    const zone = state.world.zoneId;
+    const avgLv = Math.round(state.team.party.reduce((a, c) => a + c.level, 0) / Math.max(1, state.team.party.filter((c) => c.hp > 0).length));
+    const baseLv = kind === 'boss' ? enemy.level : Math.min(enemy.level, avgLv + 1);
+    const squad = kind === 'boss'
+      ? bossSquad(enemy.species, enemy.level, mission ? mission.zone : zone)
+      : wildSquad(zone, baseLv);
+    if (kind !== 'boss') squad[0] = [enemy.species, enemy.level];
+    const aliveN = state.team.party.filter((c) => c.hp > 0).length;
+    if (kind !== 'boss' && squad.length > aliveN) squad.length = aliveN; // wild never outnumbers your squad
+    const sd = startShowdown(state.team, squad, kind, mission, zone);
+    if (!sd || !sd.squad('player').length) {
+      state.world.setNotice('Your squad needs healing first.');
+      state.mode = 'field';
+      return;
+    }
+    state.battle = sd;
+    state.battle._kind = kind; state.battle._mission = mission; state.battle._zone = zone;
+    state.mode = 'battle';
+    state.submenu = null;
+    state.stats.encounters += 1;
+    playSfx('encounter');
+    return;
+  }
   state.battle = startBattle(state.team, enemy, kind, mission);
+
   state.battle._kind = kind; state.battle._mission = mission; state.battle._zone = state.world.zoneId;
   state.mode = 'battle';
   state.submenu = null;
@@ -222,7 +256,11 @@ function handleFieldEvent(res) {
 function updateBattle(dt) {
   const b = state.battle;
   if (!b) { state.mode = 'field'; return; }
+
+  if (b.isShowdown) { updateShowdown(dt); return; }
+
   if (b.fx) { b.fx.t -= dt; if (b.fx.t <= 0) b.fx = null; }
+
 
   // fire any queued sfx lines from the log
   const last = b.log[b.log.length - 1];
@@ -293,8 +331,81 @@ function battleMenuButtons(b) {
   return btns;
 }
 
-function act(battle, action) {
-  if (!action) return;
+// ----------------------------------------------------- showdown (auto-battler)
+function updateShowdown(dt) {
+  const b = state.battle;
+  b.update(dt);
+
+  if (input.hit('c')) { state.mode = 'codex'; return; }
+
+  if (b.phase === 'end') {
+    if (input.mouse.clicked || input.hit('enter')) finishBattle(b);
+    return;
+  }
+
+  const clicked = showdownButtons(b).find((btn) => input.inRect(btn.x, btn.y, btn.w, btn.h));
+  if (!clicked) return;
+  playSfx('menu');
+  if (clicked.id === 'pause') { b.paused = !b.paused; return; }
+  if (clicked.id === 'ff') { b.toggleSpeed(); return; }
+  if (clicked.id === 'codex') { state.mode = 'codex'; return; }
+  if (clicked.id === 'capture') {
+    if (state.team.seedstones <= 0) { state.world.setNotice('No Seedstones left.'); return; }
+    state.team.useSeedstone();
+    const res = b.tryCapture();
+    if (res.caught) playSfx('capture');
+    return;
+  }
+  if (clicked.id === 'flee') {
+    if (b.tryFlee()) playSfx('menu');
+  }
+}
+
+function finishShowdown(b) {
+  state.battle = null;
+  const won = b.winner === 'player';
+  const captured = b.winner === 'captured';
+  const wasBoss = b.kind === 'boss';
+  const mission = b._mission;
+
+  if (captured && b.captured) {
+    state.team.markCaught(b.captured.species);
+    state.team.captureCount += 1;
+    if (state.team.party.length < 6) state.team.addCreature(b.captured);
+    else { state.team.box.push(b.captured); }
+    worldMessage(`${b.captured.nickname} joins your cause!`);
+  }
+  if (won) {
+    state.stats.wins += 1;
+    worldMessage(`Wild squad beaten! +${b.xpGained} XP`);
+    if (wasBoss && mission) {
+      state.world.bossDefeated[mission.zone] = true;
+      worldMessage(`${mission.name} — mission settled!`);
+      if (mission.key === 'nocturne') {
+        state.result = { time: state.stats.time, steps: state.world.steps, captures: state.team.captureCount, wins: state.stats.wins };
+        state.mode = 'victory';
+        stopMusic(); playSfx('victory'); saveGame(state);
+        return;
+      }
+    }
+    state.mode = 'field';
+  } else if (b.winner === 'fled') {
+    state.mode = 'field';
+  } else if (state.team.allFainted()) {
+    state.lostNote = `${Math.min(DEFEAT_PENALTY_ITEMS, state.team.seedstones)} Seedstones scattered`;
+    state.team.seedstones = Math.max(0, state.team.seedstones - DEFEAT_PENALTY_ITEMS);
+    state.mode = 'defeat';
+    stopMusic(); playSfx('defeat');
+    return;
+  } else {
+    // squad wiped but party technically alive elsewhere? (shouldn't happen) — treat as defeat-lite
+    state.mode = 'field';
+  }
+  saveGame(state);
+  playMusic(state.world.zoneId);
+}
+
+function act(battle, action) {  if (!action) return;
   battle.playerAction(action);
   // animate: hold the resolution briefly so hits read on screen
   state.busy = 1.15;
@@ -303,6 +414,7 @@ function act(battle, action) {
 }
 
 function finishBattle(b) {
+  if (b.isShowdown) return finishShowdown(b);
   const wasBoss = b.kind === 'boss';
   const mission = b.mission;
   state.battle = null;
@@ -384,8 +496,13 @@ function draw() {
       particles.draw(ctx);
       break;
     case 'battle':
-      drawBattle(ctx, state.battle, state.t, particles);
-      drawBattleSceneHud(state.battle);
+      if (state.battle && state.battle.isShowdown) {
+        drawShowdown(ctx, state.battle, state.t);
+        drawShowdownHud(ctx, state.battle, state.team);
+      } else {
+        drawBattle(ctx, state.battle, state.t, particles);
+        drawBattleSceneHud(state.battle);
+      }
       break;
     case 'codex': drawCodex(ctx, state.team, state.t); break;
     case 'victory': drawVictory(ctx, state.result || { time: 0, steps: 0, captures: 0, wins: 0 }, state.t); break;
@@ -398,8 +515,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=11';
-import { MOVES as MOVES_TABLE } from './data.js?v=11';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=12';
+import { MOVES as MOVES_TABLE } from './data.js?v=12';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {

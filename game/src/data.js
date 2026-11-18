@@ -148,16 +148,97 @@ export const SPECIES = {
     base: { hp: 19, atk: 8, def: 5, spd: 8 }, xpYield: 20, rarity: 4,
     learn: [{ lv: 1, move: 'gloomSpore' }, { lv: 6, move: 'hexBloom' }],
   },
+  // ---- Showdown roster expansion (auto-battler units) ----
+  lampkin: {
+    id: 'lampkin', name: 'Lampkin', element: 'Ember',
+    desc: 'A jack-o-lantern with a borrowed candle. Generous with the light, stingy with the secrets.',
+    base: { hp: 24, atk: 7, def: 7, spd: 5 }, xpYield: 23, rarity: 3, ability: 'kindle',
+    learn: [{ lv: 1, move: 'emberDart' }, { lv: 6, move: 'cinderRoar' }],
+  },
+  brineling: {
+    id: 'brineling', name: 'Brineling', element: 'Tide',
+    desc: 'A little knot of living sea-salt that reformulates itself after every storm.',
+    base: { hp: 23, atk: 6, def: 9, spd: 6 }, xpYield: 23, rarity: 3, ability: 'riposte',
+    learn: [{ lv: 1, move: 'bubbleFlick' }, { lv: 6, move: 'brineWave' }],
+  },
+  arcmoth: {
+    id: 'arcmoth', name: 'Arcmoth', element: 'Volt',
+    desc: 'Flies straight into every storm because it finds the impact fashionable.',
+    base: { hp: 20, atk: 9, def: 5, spd: 9 }, xpYield: 25, rarity: 3, ability: 'overload',
+    learn: [{ lv: 1, move: 'sparkJolt' }, { lv: 7, move: 'thunderPelea' }],
+  },
+  murkmaw: {
+    id: 'murkmaw', name: 'Murkmaw', element: 'Gloom',
+    desc: 'Bites first, haunts later. Shrine etiquette discourages both.',
+    base: { hp: 25, atk: 10, def: 6, spd: 7 }, xpYield: 28, rarity: 2, ability: 'dread',
+    learn: [{ lv: 1, move: 'gloomSpore' }, { lv: 8, move: 'hexBloom' }],
+  },
+  fernacle: {
+    id: 'fernacle', name: 'Fernacle', element: 'Verdant',
+    desc: 'A fern in a very old shell, moving at a very diplomatic pace.',
+    base: { hp: 30, atk: 6, def: 11, spd: 3 }, xpYield: 26, rarity: 3, ability: 'bulwark',
+    learn: [{ lv: 1, move: 'leafLash' }, { lv: 7, move: 'bloomDrain' }],
+  },
 };
 
 export const SPECIES_LIST = Object.keys(SPECIES);
 
 // Wild encounter tables per zone id (weight).
 export const WILD_TABLES = {
-  moss:   [['mossbeak', 5], ['frostcap', 3], ['stormpup', 2], ['thornback', 2], ['gloomling', 2], ['verdanom', 4], ['tidrel', 3], ['voltip', 2], ['emberling', 2], ['gloomcap', 1]],
-  cliff:  [['cindermot', 5], ['embersnail', 3], ['peblite', 3], ['stormpup', 2], ['emberling', 5], ['voltip', 3], ['magmoth', 0.02], ['gloomcap', 1]],
-  temple: [['gloomling', 5], ['duskfin', 2], ['frostcap', 2], ['gloomcap', 5], ['verdanom', 2], ['nocturne', 0.012], ['tidrel', 1]],
+  moss:   [['mossbeak', 5], ['frostcap', 3], ['stormpup', 2], ['thornback', 2], ['gloomling', 2], ['verdanom', 4], ['tidrel', 3], ['voltip', 2], ['emberling', 2], ['gloomcap', 1], ['fernacle', 2], ['brineling', 2]],
+  cliff:  [['cindermot', 5], ['embersnail', 3], ['peblite', 3], ['stormpup', 2], ['emberling', 5], ['voltip', 3], ['magmoth', 0.02], ['gloomcap', 1], ['lampkin', 2], ['arcmoth', 2]],
+  temple: [['gloomling', 5], ['duskfin', 2], ['frostcap', 2], ['gloomcap', 5], ['verdanom', 2], ['nocturne', 0.012], ['tidrel', 1], ['murkmaw', 2], ['arcmoth', 1]],
 };
+
+// ------------------------------------------------- showdown abilities (passive)
+// Each unit carries one ability from its species (bosses always get one).
+// kindle   — battle start: whole allied team +18% ATK
+// riposte  — 25% chance to strike back when hit
+// overload — attacks gain +15% crit chance (x1.6 dmg)
+// dread    — on hit, 18% chance the target loses its next action (scared)
+// bulwark  — takes 22% less damage from everything
+export const ABILITIES = {
+  kindle:   { name: 'Kindle',   note: '+18% team ATK at the start of every skirmish' },
+  riposte:  { name: 'Riposte',  note: '25% chance to strike back when hit' },
+  overload: { name: 'Overload', note: '+15% critical chance (x1.6 damage)' },
+  dread:    { name: 'Dread',    note: 'Hits may scare the foe out of its next action' },
+  bulwark:  { name: 'Bulwark',  note: 'Takes 22% less damage from every source' },
+};
+
+/** Pick an ability for a freshly made creature: species default, or rolled by element. */
+export function abilityForSpecies(sp) {
+  if (sp.ability) return sp.ability;
+  const byElement = { Ember: 'kindle', Tide: 'riposte', Volt: 'overload', Gloom: 'dread', Verdant: 'bulwark' };
+  return byElement[sp.element] || null;
+}
+
+/** A random enemy squad for the wild (3-6 units, formation slots auto). */
+export function wildSquad(zoneId, baseLevel) {
+  const table = WILD_TABLES[zoneId] || WILD_TABLES.moss;
+  const total = table.reduce((s, [, w]) => s + w, 0);
+  const pick = () => {
+    let r = Math.random() * total;
+    for (const [id, w] of table) { r -= w; if (r <= 0) return id; }
+    return table[0][0];
+  };
+  const count = 2 + Math.floor(Math.random() * 3); // 2..4 wilders (player outnumbers slightly to keep win rate fair)
+  const squad = [];
+  for (let i = 0; i < count; i++) squad.push([pick(), baseLevel + rint2(-1, 2)]);
+  return squad;
+}
+
+function rint2(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+
+/** Boss squad: the Tribus plus 2-3 wild escorts from its zone. */
+export function bossSquad(bossId, bossLevel, zoneId) {
+  const squad = [[bossId, bossLevel]];
+  const table = (WILD_TABLES[zoneId] || WILD_TABLES.moss).filter(([id]) => !SPECIES[id].boss);
+  for (let i = 0; i < 3; i++) {
+    const [id] = table[Math.floor(Math.random() * table.length)];
+    squad.push([id, bossLevel - 2 + Math.floor(Math.random() * 3)]);
+  }
+  return squad;
+}
 
 // Fixed story encounters: walking onto the tile near these markers starts the boss battle.
 export const MISSIONS = [

@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.join(HERE, "game")
 PORT = 8792
-BASE = f"http://127.0.0.1:{PORT}/index.html"
+BASE = f"http://127.0.0.1:{PORT}/index.html?classic=1"  # this suite exercises the turn-based duel
 
 server = subprocess.Popen([sys.executable, "-m", "http.server", str(PORT), "--directory", GAME],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -145,7 +145,7 @@ try:
         check(page.evaluate("__vs.mode") in ("defeat", "field"), "fainted party routes to defeat/field")
 
         # --- debug victory + restart
-        page.goto(BASE + "?debug=win")
+        page.goto(BASE + "&debug=win")
         page.wait_for_timeout(600)
         check(page.evaluate("__vs.mode") == "victory", "debug=win shows victory screen")
         score = page.evaluate("(typeof victoryScore==='function') ? 1 : 0")
@@ -154,7 +154,7 @@ try:
         check(page.evaluate("__vs.mode") in ("field", "title"), "restart from victory returns to play")
 
         # --- zone transitions (walk east off the town edge -> route)
-        page.goto(BASE + "?debug=field")
+        page.goto(BASE + "&debug=field")
         page.wait_for_timeout(500)
         z = page.evaluate("""() => {
           const st = __vs;
