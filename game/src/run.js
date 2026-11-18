@@ -90,6 +90,8 @@ export function buy(run, i) {
   const offer = run.shop[i]; if (!offer) return 'empty slot';
   if (run.coins < offer.cost) return 'not enough coins';
   if (offer.kind === 'item') {
+    const t = (offer.effect || {}).type;
+    if (!run.board.length && (t === 'heal_board' || t === 'buff' || t === 'damage_next' || t === 'shield' || t === 'element2')) return 'buy a monster before using this item';
     run.coins -= offer.cost;
     run.shop[i] = null;
     applyItem(run, offer);
