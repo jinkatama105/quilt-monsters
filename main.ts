@@ -33,7 +33,11 @@ if (!outDir) {
 
 mkdirSync(outDir, { recursive: true });
 cpSync(join('game'), join(outDir, 'game'), { recursive: true });
-cpSync(join('screenshots'), join(outDir, 'screenshots'), { recursive: true });
+// The gate allows at most 4 screenshots; the repo folder keeps dev shots,
+// only the four run-loop images the dossier cites ship in the output.
+const SHOTS = ['prod-run.png', 'run_shop.png', 'ui-shop.png', 'ui-trainer.png'];
+mkdirSync(join(outDir, 'screenshots'), { recursive: true });
+for (const s of SHOTS) cpSync(join('screenshots', s), join(outDir, 'screenshots', s));
 
 // buildDossier reads <dir>/game and <dir>/screenshots, so point it at the copy.
 const dossier = buildDossier(outDir, CAPS);
