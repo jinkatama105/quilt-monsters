@@ -72,7 +72,7 @@ function titleBgImage() {
     _titleBg = null;
     const img = new Image();
     img.onload = () => { _titleBg = img; };
-    img.src = 'assets/title_hero.png?v=quilt3';
+    img.src = 'assets/title_hero.png?v=quilt4';
   }
   return _titleBg;
 }

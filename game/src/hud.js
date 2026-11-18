@@ -35,7 +35,7 @@ function uiImg(name) {
     const img = new Image();
     img.onerror = () => uiCache.set(name, false);
     img.onload = () => uiCache.set(name, img);
-    img.src = `assets/ui/${name}.png?v=quilt3`;
+    img.src = `assets/ui/${name}.png?v=quilt4`;
     uiCache.set(name, null); // loading
   }
   return uiCache.get(name);
