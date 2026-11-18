@@ -4,12 +4,12 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run3';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run3';
-import { mulberry32, rint } from './random.js?v=run3';
-import { panel, roundRect, drawSlice } from './hud.js?v=run3';
-import { drawCreature } from './art.js?v=run3';
-import { makeCreature } from './team.js?v=run3';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run4';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run4';
+import { mulberry32, rint } from './random.js?v=run4';
+import { panel, roundRect, drawSlice } from './hud.js?v=run4';
+import { drawCreature } from './art.js?v=run4';
+import { makeCreature } from './team.js?v=run4';
 
 // ------------------------------------------------------------------ data
 export const BUILTIN_TRAINERS = [

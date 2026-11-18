@@ -4,14 +4,20 @@
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run3';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run3';
-import { makeCreature, giveXp } from './team.js?v=run3';
-import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run3';
-import { battleBg, drawBattleBg } from './bg.js?v=run3';
-import { panel, roundRect } from './hud.js?v=run3';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run4';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run4';
+import { makeCreature, giveXp } from './team.js?v=run4';
+import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run4';
+import { battleBg, drawBattleBg } from './bg.js?v=run4';
+import { panel, roundRect } from './hud.js?v=run4';
 
 const R = () => Math.random();
+
+// v4: minimum beat between strikes, in game-time seconds at 1x. The gate
+// ticks in game time, so at 2x the beat is half as long in real time.
+// 0.7s lets the 0.4s lunge play out and the damage number (1.1s life)
+// linger before the next strike lands — one strike reads at a time.
+const STRIKE_GATE = 0.7;
 
 // Ghibli PNG loader (own cache, smaller draw size for squad members)
 const artCache = new Map();
@@ -71,7 +77,8 @@ export class Showdown {
     enemyUnits.forEach((c, i) => this.units.push(new Unit(c, 'enemy', i)));
     this.phase = 'vs';          // vs (splash) -> live -> end
     this.vsT = 1.8;
-    this.speed = 1;             // 1 | 2 | 4  (pause handled by state.paused)
+    this.speed = 1;             // 1 | 2 only (Batomon: 1x normal, 2x fast — no 4x)
+    this.strikeGate = 0;        // v4: beat between strikes, game-time seconds
     this.paused = false;
     this.t = 0;
     this.time = 0;              // battle clock at 1x
@@ -149,13 +156,18 @@ export class Showdown {
 
     const g = dt * this.speed;
     this.time += g;
+    // v4: one strike at a time — after a strike lands, all bars hold for a
+    // short beat (STRIKE_GATE game-seconds) so the lunge + damage number
+    // read before the next unit acts.
+    if (this.strikeGate > 0) this.strikeGate = Math.max(0, this.strikeGate - g);
 
     for (const u of this.units) {
       if (u.fx && (u.fx.t -= g) <= 0) u.fx = null;
       if (u.skillFx && (u.skillFx.t -= g) <= 0) u.skillFx = null;
       if (!u.alive || u.scared) { if (u.scared && u.alive) { u.scared = false; u.charge = 0; } continue; }
+      if (this.strikeGate > 0) continue; // beat in progress — bars hold
       u.charge += g / (u.interval * (u.intervalMult || 1));
-      if (u.charge >= 1) { u.charge = 0; this.act(u); }
+      if (u.charge >= 1) { u.charge = 0; this.strikeGate = STRIKE_GATE; this.act(u); }
     }
 
     const pl = this.aliveSquad('player').length, en = this.aliveSquad('enemy').length;
@@ -235,15 +247,16 @@ export class Showdown {
     target.fx = { kind: 'hurt', t: 0.35 };
     this.shake = Math.min(1, this.shake + 0.35);
     const tp = this.posOf(target);
-    if (target.shieldFx) { this.pop(tp.x, tp.y - 58, `⛨${target.shieldFx}`, '#8ecbff', 1); target.shieldFx = 0; }
-    // damage numbers: white normal / yellow big crit, float up + fade in ~600ms
-    this.pop(tp.x + (R() * 30 - 15), tp.y - 34, (crit ? '✦' : '') + dmg, crit ? '#ffd24a' : '#ffffff', crit ? 0.9 : 0.6, crit);
-    if (eff > 1) this.pop(tp.x, tp.y - 72, 'SUPER!', '#8ef2a0', 1);
+    if (target.shieldFx) { this.pop(tp.x, tp.y - 58, `⛨${target.shieldFx}`, '#8ecbff', 1.2); target.shieldFx = 0; }
+    // damage numbers: white normal / yellow big crit, float up + fade in ~1.1s
+    // (v4: was 0.6s — unreadable when strikes landed every ~0.3s)
+    this.pop(tp.x + (R() * 30 - 15), tp.y - 34, (crit ? '✦' : '') + dmg, crit ? '#ffd24a' : '#ffffff', crit ? 1.4 : 1.1, crit);
+    if (eff > 1) this.pop(tp.x, tp.y - 72, 'SUPER!', '#8ef2a0', 1.3);
     // Ember Thread: ember moves leave a burn tick; trainer bonusBurn adds to any fire attacker
     const burnAmt = (atkEl === 'Ember' ? (this.burnOnCast || 0) : 0) + (u.c.bonusBurn || 0);
     if (burnAmt > 0 && target.alive && mv.power > 0) {
       target.c.hp = Math.max(0, target.c.hp - burnAmt);
-      this.pop(tp.x, tp.y - 48, `🔥${burnAmt}`, '#ffb15a', 0.6);
+      this.pop(tp.x, tp.y - 48, `🔥${burnAmt}`, '#ffb15a', 1.0);
       if (target.c.hp <= 0) this.faint(target);
     }
     // Double Needle: multicast ally repeats the strike once
@@ -257,7 +270,7 @@ export class Showdown {
     if (u.ability === 'dread' && target.alive && R() < 0.18) {
       target.scared = true; target.charge = 0;
       u.skillFx = { kind: 'dread', t: 0.7 };
-      this.pop(tp.x, tp.y - 92, 'SCARED', '#c9a1ff', 1);
+      this.pop(tp.x, tp.y - 92, 'SCARED', '#c9a1ff', 1.2);
     }
     // riposte proc
     if (target.alive && target.ability === 'riposte' && R() < 0.25) {
@@ -266,7 +279,7 @@ export class Showdown {
       u.c.hp = Math.max(0, u.c.hp - back);
       u.fx = { kind: 'hurt', t: 0.3 };
       const up = this.posOf(u);
-      this.pop(up.x, up.y - 40, back, '#ff8ec4', 1);
+      this.pop(up.x, up.y - 40, back, '#ff8ec4', 1.2);
       if (u.c.hp <= 0) this.faint(u);
     }
     if (target.c.hp <= 0) this.faint(target);
@@ -292,7 +305,8 @@ export class Showdown {
   pop(x, y, text, color, life = 1, big = life >= 1.4) { this.pops.push({ x, y, text, color, t: life, big }); }
 
   // ---- player steering -----------------------------------------------------
-  toggleSpeed() { this.speed = this.speed >= 4 ? 1 : this.speed * 2; }
+  // v4: Batomon offers 1x / 2x only — no 4x step.
+  toggleSpeed() { this.speed = this.speed >= 2 ? 1 : 2; }
   squadOf(side) { return this.squad(side); } // kept for external tools
 
   tryCapture() {
@@ -545,7 +559,7 @@ function drawVsCard(ctx, sd) {
 export function showdownButtons(sd) {
   const btns = [
     { id: 'pause', label: sd.paused ? '▶' : '❚❚', x: VIEW_W / 2 - 96, y: 14, w: 44, h: 40 },
-    { id: 'ff', label: sd.speed >= 4 ? '4×' : sd.speed + '×', x: VIEW_W / 2 + 52, y: 14, w: 44, h: 40 },
+    { id: 'ff', label: sd.speed + '×', x: VIEW_W / 2 + 52, y: 14, w: 44, h: 40 },
   ];
   if (sd.phase === 'live' || sd.phase === 'vs') {
     if (!sd._run) { // quilt run battles: 100% automated, no capture/flee
@@ -591,7 +605,7 @@ export function drawShowdownHud(ctx, sd, team) {
   }
   ctx.fillStyle = isPaused ? '#ffb14a' : '#9fd8c8';
   ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
-  ctx.fillText(isPaused ? 'PAUSED' : ['NORMAL', 'FAST FORWARD', '×4 FRENZY'][Math.log2(sd.speed)], W / 2, 54);
+  ctx.fillText(isPaused ? 'PAUSED' : sd.speed === 1 ? 'SPEED 1× · NORMAL' : 'SPEED 2× · FAST FORWARD', W / 2, 54);
 
   // unit counters (backpack-style numbers top corners)
   const pl = sd.aliveSquad('player').length, en = sd.aliveSquad('enemy').length;
