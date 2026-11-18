@@ -4,18 +4,18 @@
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run2';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run2';
-import { makeCreature, giveXp } from './team.js?v=run2';
-import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run2';
-import { battleBg, drawBattleBg } from './bg.js?v=run2';
-import { panel, roundRect } from './hud.js?v=run2';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run3';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run3';
+import { makeCreature, giveXp } from './team.js?v=run3';
+import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run3';
+import { battleBg, drawBattleBg } from './bg.js?v=run3';
+import { panel, roundRect } from './hud.js?v=run3';
 
 const R = () => Math.random();
 
 // Ghibli PNG loader (own cache, smaller draw size for squad members)
 const artCache = new Map();
-const HAS_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite']);
+const HAS_ART = new Set(['cindermot','duskfin','emberling','embersnail','frostcap','gelundra','gloomcap','gloomling','magmoth','mossbeak','nocturne','stormpup','thornback','verdanom','voltip','peblite']);
 function unitArt(ctx, speciesId, cx, cy, pose, size, t = 0, flip = false) {
   if (drawQuilt(ctx, speciesId, cx, cy, pose, size, t, flip)) return true;
   if (!HAS_ART.has(speciesId)) return false;
@@ -162,9 +162,16 @@ export class Showdown {
     if (en === 0 || pl === 0) {
       this.phase = 'end';
       this.winner = en === 0 ? 'player' : 'enemy';
+      this.clearFx(); // v3: fx/skillFx only tick while live — clear so the burst disc can't freeze on the end screen
       if (en === 0) this.settleXp();
     }
   }
+
+  // Patch v3 — attack highlight freeze: update() ticks u.fx/u.skillFx only
+  // while phase === 'live', so a skill-burst disc (up to ~300px) would sit
+  // frozen behind a unit under the victory/defeat veil. Clear both the moment
+  // the battle ends (all three 'end' transitions call this).
+  clearFx() { for (const u of this.units) { u.fx = null; u.skillFx = null; } }
 
   act(u) {
     const foes = this.aliveSquad(u.side === 'player' ? 'enemy' : 'player');
@@ -278,7 +285,7 @@ export class Showdown {
     this.xpGained = Math.max(4, Math.round(total * 0.5 / Math.max(1, standing.length)));
     for (const u of standing) {
       const evs = giveXp(u.c, this.xpGained);
-      for (const ev of evs) if (ev.kind === 'level') this.pop(this.posOf(u).x, this.posOf(u).y - 84, 'LEVEL UP!', '#ffe14d', 1.8);
+      for (const ev of evs) if (ev.kind === 'level') this.pop(this.posOf(u).x, this.posOf(u).y - 112, 'LEVEL UP!', '#ffe14d', 1.8); // v3: was y-84, overlapped the trait/Lv nameplate
     }
   }
 
@@ -305,11 +312,12 @@ export class Showdown {
     this.captured = t.c;
     this.phase = 'end';
     this.winner = 'captured';
+    this.clearFx(); // v3: don't freeze the burst disc on the end screen
     return { caught: true, shakes };
   }
 
   tryFlee() {
-    if (R() < 0.72) { this.phase = 'end'; this.winner = 'fled'; return true; }
+    if (R() < 0.72) { this.phase = 'end'; this.winner = 'fled'; this.clearFx(); return true; }
     this.pop(VIEW_W / 2, VIEW_H / 2, 'NO ESCAPE!', '#ff8a6a', 1.4);
     return false;
   }

@@ -4,12 +4,12 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run2';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run2';
-import { mulberry32, rint } from './random.js?v=run2';
-import { panel, roundRect, drawSlice } from './hud.js?v=run2';
-import { drawCreature } from './art.js?v=run2';
-import { makeCreature } from './team.js?v=run2';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run3';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run3';
+import { mulberry32, rint } from './random.js?v=run3';
+import { panel, roundRect, drawSlice } from './hud.js?v=run3';
+import { drawCreature } from './art.js?v=run3';
+import { makeCreature } from './team.js?v=run3';
 
 // ------------------------------------------------------------------ data
 export const BUILTIN_TRAINERS = [
@@ -241,17 +241,27 @@ export function runSnapshot(run) {
 }
 
 // -------------------------------------------------------------- trainer passive
-/** Fire the trainer passive. on:'victory' runs after a won battle; on:'battleStart' before each battle. Mutates board. */
+/** Fire the trainer passive. on:'victory' runs after a won battle; on:'battleStart' before each battle. Mutates board.
+ *  v3: effect.target may be an ELEMENT NAME (Ember/Verdant/Volt/Tide/Gloom, any case),
+ *  a legacy lowercase element key (fire/grass/electric/water/ghost), or a board
+ *  position (leftmost/rightmost/all). Before v3 only the lowercase keys matched, so
+ *  target:'Ember' silently fell through to the WHOLE board (every monster got the
+ *  buff) and target:'leftmost' did the same — Bimo would have multicasted everyone. */
 export function applyPassive(run, won, when = 'victory') {
   const tr = TRAINERS_BY_ID[run.trainerId]; if (!tr) return null;
   const p = tr.passive; if (!p || p.on !== when) return null;
   if (when === 'victory' && !won) return null;
   const e = p.effect;
-  const elemMatch = { fire: 'Ember', grass: 'Verdant', electric: 'Volt', water: 'Tide', ghost: 'Gloom' }[e.target];
+  const t = String(e.target || '').toLowerCase();
+  const elemMatch = { ember: 'Ember', verdant: 'Verdant', volt: 'Volt', tide: 'Tide', gloom: 'Gloom',
+    fire: 'Ember', grass: 'Verdant', electric: 'Volt', water: 'Tide', ghost: 'Gloom' }[t];
+  let targets = run.board;
+  if (elemMatch) targets = run.board.filter((c) => { const sp = SPECIES[c.species]; return sp && sp.element === elemMatch; });
+  else if (t === 'leftmost') targets = run.board.length ? [run.board[0]] : [];
+  else if (t === 'rightmost') targets = run.board.length ? [run.board[run.board.length - 1]] : [];
+  // 'all' or anything unrecognised: whole board (previous behaviour).
   let hits = 0;
-  for (const c of run.board) {
-    const sp = SPECIES[c.species];
-    if (elemMatch && sp.element !== elemMatch) continue;
+  for (const c of targets) {
     if (e.type === 'atk') c.stats.atk += e.amount;
     else if (e.type === 'spd') c.stats.spd += e.amount;
     else if (e.type === 'shield') c.shield = (c.shield || 0) + e.amount;
@@ -369,7 +379,7 @@ export function drawRun(ctx, run, t, mouse) {
   drawSlice(ctx, 'coin_icon', VIEW_W - 196, 24, 22, 22, 6, 1);
   ctx.font = 'bold 22px monospace'; ctx.fillStyle = '#3b2c17';
   ctx.fillText(`⬤ ${run.coins}`, VIEW_W - 170, 44);
-  ctx.font = '14px monospace'; ctx.fillStyle = '#6d5b3c';
+  ctx.font = 'bold 14px monospace'; ctx.fillStyle = '#3b2c17'; // v3: was 14px #6d5b3c, unreadable on sage
   ctx.fillText(run.rank, 24, 68);
 
   if (run.phase === 'trainer') return drawTrainerSelect(ctx, run, t, mouse);
@@ -405,7 +415,9 @@ function drawTrainerSelect(ctx, run, t, mouse) {
       roundRect(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
       ctx.strokeStyle = ELEMENT_COLORS[tr.element] || '#8ef2a0'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
     }
-    ctx.save(); ctx.translate(b.x + b.w / 2, b.y + 120); ctx.scale(1.5, 1.5);
+    // v3: was scale 1.5 at y+120 — the 240px-tall sprite reached the name line (y+220).
+    // 1.2x recentered at y+100 ends at ~y+200, clear of the name glyphs (~y+205).
+    ctx.save(); ctx.translate(b.x + b.w / 2, b.y + 100); ctx.scale(1.2, 1.2);
     drawCreature(ctx, tr.element === 'Ember' ? 'embercub' : tr.element === 'Volt' ? 'voltip' : 'leaflet', 0, 0, t + i * 2, 'idle');
     ctx.restore();
     ctx.textAlign = 'center'; ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 22px monospace';
@@ -473,7 +485,9 @@ function drawShop(ctx, run, t, mouse) {
     ctx.fillStyle = inRect(mouse, b) ? 'rgba(233,106,138,.18)' : 'rgba(255,201,60,.10)';
     roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
     ctx.strokeStyle = EL_COLOR(c.species); ctx.lineWidth = 2; ctx.stroke();
-    ctx.save(); ctx.translate(b.x + 52, b.y + 60); ctx.scale(0.7, 0.7);
+    // v3: was scale 0.7 at (b.x+52, b.y+60) — sprite feet reached y+116, over the Lv line (y+112).
+    // 0.6x recentered in the card (74 = BW/2) ends at ~y+98, clear of the Lv glyphs (~y+103).
+    ctx.save(); ctx.translate(b.x + 74, b.y + 50); ctx.scale(0.6, 0.6);
     drawCreature(ctx, c.species, 0, 0, t + i * 1.7, 'idle'); ctx.restore();
     ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 13px monospace';
     ctx.fillText(`${'★'.repeat(c.stars || 1)} Lv${c.level}`, b.x + 10, b.y + 112);
@@ -525,16 +539,16 @@ function drawTrinketRow(ctx, run, mouse, list, label) {
   ctx.fillText(label.toUpperCase(), VIEW_W / 2, 640); ctx.textAlign = 'left';
   const W = 300, X0 = (VIEW_W - W * list.length - 20 * (list.length - 1)) / 2;
   list.forEach((tr, i) => {
-    const b = { x: X0 + i * (W + 20), y: 660, w: W, h: 96 };
+    const b = { x: X0 + i * (W + 20), y: 660, w: W, h: 100 }; // v3: was h 96 — text crowded the bottom border
     run._btns.push({ ...b, id: `trinket:${i}` });
     const hot = inRect(mouse, b);
     ctx.fillStyle = hot ? 'rgba(255,201,60,.30)' : 'rgba(255,201,60,.10)';
     roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
     ctx.strokeStyle = '#c8a355'; ctx.lineWidth = hot ? 2.5 : 1.5; ctx.stroke();
-    ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 16px monospace'; ctx.fillText(tr.name, b.x + 14, b.y + 30);
+    ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 16px monospace'; ctx.fillText(tr.name, b.x + 16, b.y + 30);
     ctx.fillStyle = '#6d5b3c'; ctx.font = '12px monospace';
-    ctx.save(); ctx.beginPath(); ctx.rect(b.x + 10, b.y + 38, b.w - 20, b.h - 44); ctx.clip();
-    wrapLeft(ctx, tr.text, b.x + 14, b.y + 56, b.w - 28, 15); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(b.x + 12, b.y + 40, b.w - 24, b.h - 50); ctx.clip(); // v3: text inset — was (x+10, y+38, w-20, h-44), 6px from the border
+    wrapLeft(ctx, tr.text, b.x + 16, b.y + 56, b.w - 32, 15); ctx.restore();
   });
 }
 function wrapLeft(ctx, text, x, y, maxW, lh) {
@@ -593,7 +607,7 @@ function drawOver(ctx, run, mouse) {
   run._btns = [];
   ctx.textAlign = 'center'; ctx.font = 'bold 36px monospace'; ctx.fillStyle = '#e85d4a';
   ctx.fillText('RUN OVER', VIEW_W / 2, 250);
-  ctx.font = '18px monospace'; ctx.fillStyle = '#9fd8c8';
+  ctx.font = '18px monospace'; ctx.fillStyle = '#6d5b3c'; // bright fix (spec miss): was pale teal '#9fd8c8' on the now-cream full-screen panel — unreadable; matches drawReward's sub-line
   ctx.fillText(`survived to Day ${run.day} · best Day ${run.bestDay} · ${run.champion ? 'CHAMPION' : 'rank ' + run.rank}`, VIEW_W / 2, 300);
   ctx.textAlign = 'left';
   const b = { x: VIEW_W / 2 - 130, y: 360, w: 260, h: 58 };

@@ -1,10 +1,10 @@
 // hud.js — in-game overlay panels drawn on the canvas: field status (zone,
 // party hearts, items, mission tracker) and the battle HUD (HP bars, levels,
 // XP, action wheel, message log).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=run2';
-import { SPECIES, MOVES } from './data.js?v=run2';
-import { MISSIONS } from './data.js?v=run2';
-import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=run2';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=run3';
+import { SPECIES, MOVES } from './data.js?v=run3';
+import { MISSIONS } from './data.js?v=run3';
+import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=run3';
 
 export function panel(ctx, x, y, w, h, alpha = 0.92) {
   if (drawSlice(ctx, 'hud_panel', x, y, w, h, 24, alpha)) return;
@@ -223,7 +223,7 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   for (const b of buttons) {
     drawHudButton(ctx, b.x, b.y, b.w, b.h, b.label, hovered === b.id);
     if (b.sub) {
-      ctx.fillStyle = INK_SUB; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#6d5b3c'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
       ctx.fillText(b.sub, b.x + b.w / 2, b.y + b.h + 15); ctx.textAlign = 'left';
     }
   }

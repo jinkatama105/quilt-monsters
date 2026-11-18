@@ -1,30 +1,30 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=run2';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=run2';
-import { Input } from './input.js?v=run2';
-import { World } from './world.js?v=run2';
-import { TeamManager, makeCreature } from './team.js?v=run2';
-import { startBattle } from './battle.js?v=run2';
-import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons, Showdown as SHOWDOWN_CLASS } from './showdown.js?v=run2';
-import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=run2';
-import { wildSquad, bossSquad } from './data.js?v=run2';
-import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=run2';
-import { makeRun, restoreRun, serializeRun, drawRun, hitRun, loadData as loadRunData, chooseTrainer, buy, sell, rollShop, freeRerolls, autoMerge, stageReward, nextDay, makeOpponent, applyPassive, runSnapshot, TRAINERS_BY_ID } from './run.js?v=run2';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=run3';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=run3';
+import { Input } from './input.js?v=run3';
+import { World } from './world.js?v=run3';
+import { TeamManager, makeCreature } from './team.js?v=run3';
+import { startBattle } from './battle.js?v=run3';
+import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons, Showdown as SHOWDOWN_CLASS } from './showdown.js?v=run3';
+import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=run3';
+import { wildSquad, bossSquad } from './data.js?v=run3';
+import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=run3';
+import { makeRun, restoreRun, serializeRun, drawRun, hitRun, loadData as loadRunData, chooseTrainer, buy, sell, rollShop, freeRerolls, autoMerge, stageReward, nextDay, makeOpponent, applyPassive, runSnapshot, TRAINERS_BY_ID } from './run.js?v=run3';
 
 // Showdown mode (realtime auto-battler) is the default
 // battle engine. Append ?classic=1 to the URL (or set localStorage
 // vs-classic='1') to fall back to the old turn-based duel. See README.
 const SHOWDOWN = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=run2';
-import { drawFieldHud, panel } from './hud.js?v=run2';
-import { PALETTE } from './config.js?v=run2';
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=run3';
+import { drawFieldHud, panel } from './hud.js?v=run3';
+import { PALETTE } from './config.js?v=run3';
 function roundRectC(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=run2';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=run2';
-import { saveGame, loadGame, canSave } from './save.js?v=run2';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=run3';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=run3';
+import { saveGame, loadGame, canSave } from './save.js?v=run3';
 const ROAD = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 // Day-loop roguelike (Batomon/SAP style) — the newest shell; ?road=1 falls back
 // to the quilt node map, ?classic=1 to the old field game.
@@ -41,6 +41,7 @@ const debugMode = sessionStorage.getItem('vs-debug') || params.get('debug') || '
 
 const state = {
   mode: 'title',              // title | road | field | battle | codex | victory | defeat
+  codexFrom: null,            // v3: origin mode saved when the Codex opens; close returns here
   world: new World(),
   road: null,                 // The Quilt Road node-map (run shell)
   roadPending: null,          // node index that started the current battle
@@ -221,7 +222,9 @@ function update(dt) {
     case 'battle': updateBattle(dt); break;
     case 'codex': {
       const back = input.hit('c') || input.hit('escape') || input.inRect(VIEW_W / 2 - 90, VIEW_H - 66, 180, 44);
-      if (back) { playSfx('menu'); state.mode = state.battle ? 'battle' : (state.road && ROAD ? 'road' : 'field'); }
+      // v3: return to where the Codex was opened from (was: battle/road/field guess —
+      // closing from the shop dumped the player into the Leafpine overworld).
+      if (back) { playSfx('menu'); state.mode = state.codexFrom || (state.battle ? 'battle' : (state.road && ROAD ? 'road' : 'field')); state.codexFrom = null; }
       break;
     }
     case 'victory': {
@@ -254,9 +257,9 @@ function update(dt) {
 
 function updateField(dt) {
   state.world.update(dt);
-  if (input.hit('c')) { playSfx('menu'); state.mode = 'codex'; return; }
+  if (input.hit('c')) { playSfx('menu'); state.codexFrom = 'field'; state.mode = 'codex'; return; }
   // HUD buttons
-  if (input.inRect(VIEW_W - 150, VIEW_H - 66, 136, 44)) { playSfx('menu'); state.mode = 'codex'; return; }
+  if (input.inRect(VIEW_W - 150, VIEW_H - 66, 136, 44)) { playSfx('menu'); state.codexFrom = 'field'; state.mode = 'codex'; return; }
   if (input.inRect(VIEW_W - 274, VIEW_H - 66, 114, 44)) {
     state.muted = !state.muted; setMuted(state.muted); playSfx('menu'); return;
   }
@@ -323,7 +326,7 @@ function updateDraft() {
 function updateRoad() {
   const road = state.road;
   if (!road) { newGame(); return; }
-  if (input.hit('c')) { playSfx('menu'); state.mode = 'codex'; return; }
+  if (input.hit('c')) { playSfx('menu'); state.codexFrom = 'road'; state.mode = 'codex'; return; }
   const front = roadFrontier(road);
   let chosen = -1;
   for (let k = 0; k < 3 && k < front.length; k++) if (input.hit(String(k + 1))) chosen = front[k];
@@ -357,7 +360,7 @@ function updateRun() {
   // battle phase delegates to the showdown scene (state.battle._run set)
   if (run.phase === 'battle') return;
 
-  if (input.hit('c')) { playSfx('menu'); state.mode = 'codex'; return; }
+  if (input.hit('c')) { playSfx('menu'); state.codexFrom = 'run'; state.mode = 'codex'; return; }
   if (!input.mouse.clicked && !input.hit('enter')) return;
 
   const id = hitRun(run, input.mouse) || (input.hit('enter') ? (run.phase === 'shop' && run.board.length ? 'battle' : run.phase === 'reward' ? 'nextday' : null) : null);
@@ -484,7 +487,7 @@ function updateBattle(dt) {
 
   if (b.phase === 'end') { finishBattle(b); return; }
 
-  if (input.hit('c')) { state.mode = 'codex'; return; }
+  if (input.hit('c')) { state.codexFrom = 'battle'; state.mode = 'codex'; return; }
 
   if (state.submenu === 'moves' || state.submenu === 'switch') {
     const buttons = battleMenuButtons(b);
@@ -543,7 +546,7 @@ function updateShowdown(dt) {
   const b = state.battle;
   b.update(dt);
 
-  if (input.hit('c')) { state.mode = 'codex'; return; }
+  if (input.hit('c')) { state.codexFrom = 'battle'; state.mode = 'codex'; return; }
 
   if (b.phase === 'end') {
     if (input.mouse.clicked || input.hit('enter')) finishBattle(b);
@@ -555,7 +558,7 @@ function updateShowdown(dt) {
   playSfx('menu');
   if (clicked.id === 'pause') { b.paused = !b.paused; return; }
   if (clicked.id === 'ff') { b.toggleSpeed(); return; }
-  if (clicked.id === 'codex') { state.mode = 'codex'; return; }
+  if (clicked.id === 'codex') { state.codexFrom = 'battle'; state.mode = 'codex'; return; }
   if (clicked.id === 'capture') {
     if (state.team.seedstones <= 0) { state.world.setNotice('No Seedstones left.'); return; }
     state.team.useSeedstone();
@@ -717,7 +720,7 @@ function respawnInMeadow() {
 
 // ---------------------------------------------------------------- draw
 function draw() {
-  ctx.fillStyle = '#0b0f0d'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.fillStyle = '#f7ead0'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   switch (state.mode) {
     case 'title': drawTitle(ctx, state.t); break;
     case 'field':
@@ -727,11 +730,11 @@ function draw() {
         const d = state.dialog;
         const line = d.npc.lines[Math.min(d.line, d.npc.lines.length - 1)];
         panel(ctx, 120, VIEW_H - 150, VIEW_W - 240, 108);
-        ctx.fillStyle = '#e8d5a9'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'left';
+        ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'left';
         ctx.fillText(d.npc.name.toUpperCase(), 146, VIEW_H - 118);
-        ctx.fillStyle = PALETTE.paper; ctx.font = '17px monospace';
+        ctx.fillStyle = '#3b2c17'; ctx.font = '17px monospace';
         ctx.fillText(line, 146, VIEW_H - 84);
-        ctx.fillStyle = '#9fb8a6'; ctx.font = '13px monospace'; ctx.textAlign = 'right';
+        ctx.fillStyle = '#6d5b3c'; ctx.font = '13px monospace'; ctx.textAlign = 'right';
         ctx.fillText('[Enter] ' + (d.line + 1 >= d.npc.lines.length ? 'close' : 'next'), VIEW_W - 146, VIEW_H - 56);
         ctx.textAlign = 'left';
       }
@@ -773,8 +776,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=run2';
-import { MOVES as MOVES_TABLE } from './data.js?v=run2';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=run3';
+import { MOVES as MOVES_TABLE } from './data.js?v=run3';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {

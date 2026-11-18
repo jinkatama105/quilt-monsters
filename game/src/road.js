@@ -2,10 +2,10 @@
 // Replaces free-walking field as the run shell: pick a glowing patch -> the
 // node's event fires (showdown battle, rest, loot, peddler, boss). Map is
 // seeded so it survives autosave/restore.
-import { VIEW_W, VIEW_H } from './config.js?v=run2';
-import { mulberry32, pickWeighted } from './random.js?v=run2';
-import { WILD_TABLES, MISSIONS } from './data.js?v=run2';
-import { panel, roundRect } from './hud.js?v=run2';
+import { VIEW_W, VIEW_H } from './config.js?v=run3';
+import { mulberry32, pickWeighted } from './random.js?v=run3';
+import { WILD_TABLES, MISSIONS } from './data.js?v=run3';
+import { panel, roundRect } from './hud.js?v=run3';
 
 const COLS = 10, ROWS = 3;
 const NODE_W = 84, NODE_H = 68;
@@ -13,13 +13,13 @@ const MAP_X = 150, MAP_Y = 210, MAP_W = 980, MAP_H = 420;
 const SPOOLS_MAX = 5;
 
 const TYPE_STYLE = {
-  night:   { bg: '#4a7d4e', ic: '✦', desc: 'NIGHT — fight the pests; take a notion' },
-  elite:   { bg: '#a03434', ic: '✖', desc: 'ELITE NIGHT — a Tribus waits; big notion' },
-  tea:     { bg: '#3e7d84', ic: '☕', desc: 'TEA & REST — the kettle mends the squad' },
-  box:     { bg: '#c8861e', ic: '☐', desc: 'SEWING BOX — loot: thread and seedstones' },
-  peddler: { bg: '#b3628c', ic: '◍', desc: 'PEDDLER — trade notions for seedstones' },
-  mystery: { bg: '#5d76b8', ic: '?', desc: 'MYSTERY — a quiet stitch, who knows what it pulls' },
-  boss:    { bg: '#6a3e8f', ic: '♛', desc: 'BOSS — bind the Tribus of this stretch' },
+  night:   { bg: '#5da85f', ic: '✦', desc: 'NIGHT — fight the pests; take a notion' },
+  elite:   { bg: '#c04545', ic: '✖', desc: 'ELITE NIGHT — a Tribus waits; big notion' },
+  tea:     { bg: '#4a9aa3', ic: '☕', desc: 'TEA & REST — the kettle mends the squad' },
+  box:     { bg: '#e09a24', ic: '☐', desc: 'SEWING BOX — loot: thread and seedstones' },
+  peddler: { bg: '#c975a4', ic: '◍', desc: 'PEDDLER — trade notions for seedstones' },
+  mystery: { bg: '#7a93d6', ic: '?', desc: 'MYSTERY — a quiet stitch, who knows what it pulls' },
+  boss:    { bg: '#8a55b0', ic: '♛', desc: 'BOSS — bind the Tribus of this stretch' },
 };
 
 export function zoneForCol(c) { return c < 4 ? 'moss' : c < 7 ? 'cliff' : 'temple'; }
@@ -237,9 +237,9 @@ export function drawRoad(ctx, state, t, mouse) {
     if (hovered == null) desc += ` · press ${front.indexOf(bi) + 1}`;
     ctx.font = 'bold 18px Georgia';
     const w = ctx.measureText(desc).width + 52;
-    ctx.fillStyle = 'rgba(74,44,94,.95)'; roundRect(ctx, VIEW_W / 2 - w / 2, VIEW_H - 96, w, 40, 10); ctx.fill();
-    ctx.strokeStyle = '#2a1436'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(desc, VIEW_W / 2, VIEW_H - 70); ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,246,220,.95)'; roundRect(ctx, VIEW_W / 2 - w / 2, VIEW_H - 96, w, 40, 10); ctx.fill();
+    ctx.strokeStyle = '#5b4636'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#3b2c17'; ctx.textAlign = 'center'; ctx.fillText(desc, VIEW_W / 2, VIEW_H - 70); ctx.textAlign = 'left';
   }
   // hint + legend
   ctx.fillStyle = '#ffd23e'; ctx.font = 'bold 16px Georgia'; ctx.textAlign = 'center';
