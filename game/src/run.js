@@ -12,6 +12,7 @@ import { drawCreature } from './art.js?v=run1';
 import { makeCreature } from './team.js?v=run1';
 
 // ------------------------------------------------------------------ data
+export const INK = '#3b2c17', INK_SUB = '#6d5b3c'; // readable on light parchment UI slices
 export const BUILTIN_TRAINERS = [
   { id: 'ranger', name: 'Moss Ranger', element: 'Verdant',
     passive: { on: 'victory', effect: { type: 'shield', amount: 6, target: 'grass', permanent: true } },
@@ -348,13 +349,13 @@ export function drawRun(ctx, run, t, mouse) {
   ctx.textAlign = 'left';
   // top bar: day / hearts / coins / rank
   drawSlice(ctx, 'day_banner', 14, 12, 150, 44, 14, 0.9);
-  ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#ffe9b1';
+  ctx.font = 'bold 26px monospace'; ctx.fillStyle = INK;
   ctx.fillText(`DAY ${run.day}${run.endless ? ' ∞' : ''}`, 24, 44);
   heartsRow(ctx, 190, 44, run);
   drawSlice(ctx, 'coin_icon', VIEW_W - 196, 24, 22, 22, 6, 1);
-  ctx.font = 'bold 22px monospace'; ctx.fillStyle = '#ffd26a';
+  ctx.font = 'bold 22px monospace'; ctx.fillStyle = INK;
   ctx.fillText(`⬤ ${run.coins}`, VIEW_W - 170, 44);
-  ctx.font = '14px monospace'; ctx.fillStyle = '#9fd8c8';
+  ctx.font = '14px monospace'; ctx.fillStyle = INK_SUB;
   ctx.fillText(run.rank, 24, 68);
 
   if (run.phase === 'trainer') return drawTrainerSelect(ctx, run, t, mouse);
@@ -370,9 +371,9 @@ function button(ctx, b, label, hot, sub) {
     roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
     ctx.strokeStyle = hot ? '#ffd26a' : '#6f8f7d'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
   }
-  ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = INK; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label, b.x + b.w / 2, b.y + (sub ? 26 : b.h / 2 + 6));
-  if (sub) { ctx.font = '12px monospace'; ctx.fillStyle = '#9fb8a6'; ctx.fillText(sub, b.x + b.w / 2, b.y + 48); }
+  if (sub) { ctx.font = '12px monospace'; ctx.fillStyle = INK_SUB; ctx.fillText(sub, b.x + b.w / 2, b.y + 48); }
   ctx.textAlign = 'left';
 }
 
@@ -392,9 +393,9 @@ function drawTrainerSelect(ctx, run, t, mouse) {
     ctx.save(); ctx.translate(b.x + b.w / 2, b.y + 120); ctx.scale(1.5, 1.5);
     drawCreature(ctx, tr.element === 'Ember' ? 'embercub' : tr.element === 'Volt' ? 'voltip' : 'leaflet', 0, 0, t + i * 2, 'idle');
     ctx.restore();
-    ctx.textAlign = 'center'; ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center'; ctx.fillStyle = INK; ctx.font = 'bold 22px monospace';
     ctx.fillText(tr.name, b.x + b.w / 2, b.y + 220);
-    ctx.font = '13px monospace'; ctx.fillStyle = '#9fb8a6';
+    ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
     wrap(ctx, tr.text, b.x + b.w / 2, b.y + 246, b.w - 30, 17);
     ctx.textAlign = 'left';
   });
@@ -411,7 +412,7 @@ function wrap(ctx, text, cx, y, maxW, lh) {
 
 function drawShop(ctx, run, t, mouse) {
   run._btns = [];
-  ctx.fillStyle = '#9fd8c8'; ctx.font = '15px monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = INK_SUB; ctx.font = '15px monospace'; ctx.textAlign = 'center';
   ctx.fillText('build your board — 3 same monsters merge to ★★ · max 6 · then BATTLE', VIEW_W / 2, 92);
   ctx.textAlign = 'left';
 
@@ -428,27 +429,27 @@ function drawShop(ctx, run, t, mouse) {
       ctx.strokeStyle = offer ? EL_COLOR(offer.species) : '#556'; ctx.lineWidth = 2; ctx.stroke();
     }
     if (offer && offer.kind === 'item') {
-      ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 15px monospace';
+      ctx.fillStyle = INK; ctx.font = 'bold 15px monospace';
       ctx.fillText(offer.name || 'Item', b.x + 16, b.y + 34);
-      ctx.font = '12px monospace'; ctx.fillStyle = '#9fb8a6';
+      ctx.font = '12px monospace'; ctx.fillStyle = INK_SUB;
       wrapLeft(ctx, offer.text || 'one-shot boost', b.x + 16, b.y + 54, b.w - 90, 15);
-      ctx.fillStyle = '#ffd26a'; ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = INK; ctx.font = 'bold 16px monospace';
       ctx.fillText(`⬤ ${offer.cost}`, b.x + 88, b.y + 80);
     } else if (offer) {
       ctx.save(); ctx.translate(b.x + 44, b.y + 46); ctx.scale(0.62, 0.62);
       drawCreature(ctx, offer.species, 0, 0, t + i, 'idle'); ctx.restore();
-      ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 15px monospace';
+      ctx.fillStyle = INK; ctx.font = 'bold 15px monospace';
       ctx.fillText(SPECIES[offer.species].name, b.x + 88, b.y + 40);
-      ctx.font = '13px monospace'; ctx.fillStyle = '#9fb8a6';
+      ctx.font = '13px monospace'; ctx.fillStyle = INK_SUB;
       ctx.fillText(`Lv ${offer.lvl} · ${SPECIES[offer.species].element}`, b.x + 88, b.y + 60);
-      ctx.fillStyle = '#ffd26a'; ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = INK; ctx.font = 'bold 16px monospace';
       ctx.fillText(`⬤ ${offer.cost}`, b.x + 88, b.y + 80);
     }
     ctx.globalAlpha = 1;
   });
 
   // board
-  ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 18px monospace';
+  ctx.fillStyle = INK; ctx.font = 'bold 18px monospace';
   ctx.fillText(`BOARD ${run.board.length}/6`, X0, 260);
   const BW = 148, BH = 150;
   run.board.forEach((c, i) => {
@@ -459,23 +460,24 @@ function drawShop(ctx, run, t, mouse) {
     ctx.strokeStyle = EL_COLOR(c.species); ctx.lineWidth = 2; ctx.stroke();
     ctx.save(); ctx.translate(b.x + 52, b.y + 60); ctx.scale(0.7, 0.7);
     drawCreature(ctx, c.species, 0, 0, t + i * 1.7, 'idle'); ctx.restore();
-    ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 13px monospace';
+    ctx.fillStyle = INK; ctx.font = 'bold 13px monospace';
     ctx.fillText(`${'★'.repeat(c.stars || 1)} Lv${c.level}`, b.x + 10, b.y + 112);
-    ctx.font = '11px monospace'; ctx.fillStyle = '#9fb8a6';
+    ctx.font = '11px monospace'; ctx.fillStyle = INK_SUB;
     ctx.fillText(`${c.stats.hp}hp ${c.stats.atk}atk`, b.x + 10, b.y + 128);
+    ctx.font = 'bold 11px monospace';
     ctx.fillText(SPECIES[c.species].name, b.x + 10, b.y + 142);
   });
-  if (run.mergeTrinketPending) { ctx.fillStyle = '#ffe9b1'; ctx.font = 'bold 14px monospace'; ctx.fillText('★ MERGE BONUS: pick a trinket below', X0, 452); }
+  if (run.mergeTrinketPending) { ctx.fillStyle = INK; ctx.font = 'bold 14px monospace'; ctx.fillText('★ MERGE BONUS: pick a trinket below', X0, 452); }
 
   // trinket strip
   drawSlice(ctx, 'trinket_bar', X0 - 6, 456, SW * 4 + 42, 44, 12, 0.9);
-  ctx.fillStyle = '#9fb8a6'; ctx.font = '13px monospace';
+  ctx.fillStyle = INK_SUB; ctx.font = 'bold 13px monospace';
   ctx.fillText('TRINKETS:', X0, 480);
   run.trinkets.forEach((tr, i) => {
     const b = { x: X0 + 90 + i * 118, y: 462, w: 112, h: 30 };
     ctx.fillStyle = 'rgba(255,209,106,.12)'; roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
     ctx.strokeStyle = '#c8a355'; ctx.stroke();
-    ctx.fillStyle = '#ffe9b1'; ctx.font = '11px monospace'; ctx.fillText(tr.name, b.x + 8, b.y + 19);
+    ctx.fillStyle = INK; ctx.font = '11px monospace'; ctx.fillText(tr.name, b.x + 8, b.y + 19);
   });
 
   // merge bonus picker shares the reward row if pending
