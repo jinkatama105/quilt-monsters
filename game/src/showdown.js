@@ -4,12 +4,12 @@
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=14';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=14';
-import { makeCreature, giveXp } from './team.js?v=14';
-import { drawCreature, drawQuilt } from './art.js?v=14';
-import { battleBg, drawBattleBg } from './bg.js?v=14';
-import { panel, roundRect } from './hud.js?v=14';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=15';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=15';
+import { makeCreature, giveXp } from './team.js?v=15';
+import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=15';
+import { battleBg, drawBattleBg } from './bg.js?v=15';
+import { panel, roundRect } from './hud.js?v=15';
 
 const R = () => Math.random();
 
@@ -48,6 +48,7 @@ export class Unit {
     this.alive = true;
     this.scared = false;        // dread proc: skipped next action
     this.fx = null;             // {kind:'attack'|'hurt', t}
+    this.skillFx = null;        // {kind:<ability>, t} — quilt skill flash
     this.ability = creature.ability || abilityForSpecies(SPECIES[creature.species]) || null;
     this.kindle = false;        // set by an ally's kindle at battle start
   }
@@ -86,7 +87,7 @@ export class Showdown {
     for (const side of ['player', 'enemy']) {
       const squad = this.squad(side);
       if (squad.some((u) => u.ability === 'kindle' && u.alive)) {
-        for (const u of squad) u.kindle = true;
+        for (const u of squad) { u.kindle = true; if (u.ability === 'kindle') u.skillFx = { kind: 'kindle', t: 1.0 }; }
         this.pop(VIEW_W / 2, 150, side === 'player' ? 'KINDLE! team ATK +18%' : 'foe KINDLE flares', '#ffd2a1', 2);
       }
     }
@@ -127,6 +128,7 @@ export class Showdown {
 
     for (const u of this.units) {
       if (u.fx && (u.fx.t -= g) <= 0) u.fx = null;
+      if (u.skillFx && (u.skillFx.t -= g) <= 0) u.skillFx = null;
       if (!u.alive || u.scared) { if (u.scared && u.alive) { u.scared = false; u.charge = 0; } continue; }
       u.charge += g / u.interval;
       if (u.charge >= 1) { u.charge = 0; this.act(u); }
@@ -185,7 +187,8 @@ export class Showdown {
     let def = target.c.stats.def * (target.ability === 'bulwark' ? 1.22 : 1);
     let dmg = Math.max(1, Math.round(((mv.power * stab * atk) / (def * 2)) * (0.85 + R() * 0.2) * mult * eff));
     let crit = false;
-    if (u.ability === 'overload' && R() < 0.15) { crit = true; dmg = Math.round(dmg * 1.6); }
+    if (u.ability === 'overload' && R() < 0.15) { crit = true; dmg = Math.round(dmg * 1.6); u.skillFx = { kind: 'overload', t: 0.7 }; }
+    if (target.ability === 'bulwark' && R() < 0.3) target.skillFx = { kind: 'bulwark', t: 0.7 };
     if (R() < 0.06) dmg = Math.max(1, Math.round(dmg * 0.5)); // graze
     target.c.hp = Math.max(0, target.c.hp - dmg);
     target.fx = { kind: 'hurt', t: 0.35 };
@@ -198,10 +201,12 @@ export class Showdown {
     // dread proc
     if (u.ability === 'dread' && target.alive && R() < 0.18) {
       target.scared = true; target.charge = 0;
+      u.skillFx = { kind: 'dread', t: 0.7 };
       this.pop(tp.x, tp.y - 92, 'SCARED', '#c9a1ff', 1);
     }
     // riposte proc
     if (target.alive && target.ability === 'riposte' && R() < 0.25) {
+      target.skillFx = { kind: 'riposte', t: 0.7 };
       const back = Math.max(1, Math.round(dmg * 0.4));
       u.c.hp = Math.max(0, u.c.hp - back);
       u.fx = { kind: 'hurt', t: 0.3 };
@@ -309,6 +314,21 @@ export function drawShowdown(ctx, sd, t) {
       ctx.scale(size / 160, size / 160);
       drawCreature(ctx, u.c.species, 0, 0, t + u.slot * 3, pose);
       ctx.restore();
+    }
+
+    // skill effect flash (Monspec1 quilt FX)
+    if (u.skillFx) {
+      const img = loadQuiltImg('fx:' + u.skillFx.kind, `assets/quilt/skill-${u.skillFx.kind}.png`);
+      if (img && img !== false && img.naturalWidth) {
+        const k = Math.max(0, Math.min(1, u.skillFx.t / 0.7));
+        const grow = 1 + (1 - k) * 0.35;
+        const fs = size * 1.5 * grow;
+        ctx.save();
+        ctx.globalAlpha = 0.85 * k;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.drawImage(img, p.x - fs / 2, p.y - fs / 2, fs, fs);
+        ctx.restore();
+      }
     }
 
     // nameplate + level + hp pip + charge bar

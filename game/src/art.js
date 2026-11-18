@@ -2,8 +2,8 @@
 // creature portraits (one function per species), the field tileset, item icons,
 // particles. pos: 'idle' | 'defeat' | 'hurt'. All silhouettes are thick,
 // caricatural and share one family colour per element.
-import { ELEMENT_COLORS, TILE, T } from './config.js?v=14';
-export { T } from './config.js?v=14';
+import { ELEMENT_COLORS, TILE, T } from './config.js?v=15';
+export { T } from './config.js?v=15';
 
 function bodyGrad(ctx, cx, cy, r, color) {
   const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, r * 0.15, cx, cy, r * 1.25);
@@ -491,6 +491,7 @@ function loadImg(key, src) {
   }
   return img;
 }
+export function loadQuiltImg(key, src) { return loadImg(key, src); }
 export function drawQuilt(ctx, speciesId, cx, cy, pose, size, t = 0) {
   const rowMap = SHEET_ROW[pose] ?? (pose === 'defeat' ? 3 : 0);
   if (QUILT_SHEET.has(speciesId)) {

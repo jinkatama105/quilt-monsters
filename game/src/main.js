@@ -1,27 +1,27 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=14';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=14';
-import { Input } from './input.js?v=14';
-import { World } from './world.js?v=14';
-import { TeamManager, makeCreature } from './team.js?v=14';
-import { startBattle } from './battle.js?v=14';
-import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons } from './showdown.js?v=14';
-import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=14';
-import { wildSquad, bossSquad } from './data.js?v=14';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=15';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=15';
+import { Input } from './input.js?v=15';
+import { World } from './world.js?v=15';
+import { TeamManager, makeCreature } from './team.js?v=15';
+import { startBattle } from './battle.js?v=15';
+import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons } from './showdown.js?v=15';
+import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=15';
+import { wildSquad, bossSquad } from './data.js?v=15';
 
 // Showdown mode (realtime auto-battler) is the default
 // battle engine. Append ?classic=1 to the URL (or set localStorage
 // vs-classic='1') to fall back to the old turn-based duel. See README.
 const SHOWDOWN = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=14';
-import { drawFieldHud, panel } from './hud.js?v=14';
-import { PALETTE } from './config.js?v=14';
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=15';
+import { drawFieldHud, panel } from './hud.js?v=15';
+import { PALETTE } from './config.js?v=15';
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=14';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=14';
-import { saveGame, loadGame, canSave } from './save.js?v=14';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=15';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=15';
+import { saveGame, loadGame, canSave } from './save.js?v=15';
 
 const canvas = document.getElementById('game');
 canvas.width = VIEW_W; canvas.height = VIEW_H;
@@ -559,8 +559,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=14';
-import { MOVES as MOVES_TABLE } from './data.js?v=14';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=15';
+import { MOVES as MOVES_TABLE } from './data.js?v=15';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {
