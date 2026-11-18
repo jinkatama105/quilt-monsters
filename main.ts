@@ -12,7 +12,11 @@
 // Run: MAKEFUN_OUTPUT_DIR=/path/to/out node main.ts   (Node 22, no deps)
 
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// The repo lives here no matter what directory the grader runs us from (it uses /output as cwd).
+const here = dirname(fileURLToPath(import.meta.url));
 import { buildDossier } from './vendor/makefun-game.ts';
 
 // The bounty's caps, from its gate.json. Only text_max_bytes shapes the
@@ -32,12 +36,12 @@ if (!outDir) {
 }
 
 mkdirSync(outDir, { recursive: true });
-cpSync(join('game'), join(outDir, 'game'), { recursive: true });
+cpSync(join(here,'game'), join(outDir, 'game'), { recursive: true });
 // The gate allows at most 4 screenshots; the repo folder keeps dev shots,
 // only the four run-loop images the dossier cites ship in the output.
 const SHOTS = ['prod-run.png', 'run_shop.png', 'ui-shop.png', 'ui-trainer.png'];
 mkdirSync(join(outDir, 'screenshots'), { recursive: true });
-for (const s of SHOTS) cpSync(join('screenshots', s), join(outDir, 'screenshots', s));
+for (const s of SHOTS) cpSync(join(here,'screenshots', s), join(outDir, 'screenshots', s));
 
 // buildDossier reads <dir>/game and <dir>/screenshots, so point it at the copy.
 const dossier = buildDossier(outDir, CAPS);
