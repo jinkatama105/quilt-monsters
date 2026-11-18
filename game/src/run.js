@@ -4,12 +4,12 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run9';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run9';
-import { mulberry32, rint } from './random.js?v=run9';
-import { panel, roundRect, drawSlice } from './hud.js?v=run9';
-import { drawCreature } from './art.js?v=run9';
-import { makeCreature } from './team.js?v=run9';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run10';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run10';
+import { mulberry32, rint } from './random.js?v=run10';
+import { panel, roundRect, drawSlice } from './hud.js?v=run10';
+import { drawCreature } from './art.js?v=run10';
+import { makeCreature } from './team.js?v=run10';
 
 // ------------------------------------------------------------------ data
 export const BUILTIN_TRAINERS = [
@@ -80,8 +80,11 @@ const shopFor = (run) => {
   const rng = run.rng;
   const items = [];
   const foolGold = run.trinkets.some((t) => t.id === 'fools_gold');
-  // Lucky Stitch: after a won battle, one bonus item into the next shop.
-  const lucky = !foolGold && run.trinkets.some((t) => t.id === 'lucky_stitch') && run.luckyPending;
+  // Lucky Stitch: a pending bonus (from the trinket roll OR the shop item) puts
+  // one bonus item into the next shop. Manus #370 b1: the item's own grant must
+  // not be gated on also owning the trinket (trinket rolls already check
+  // ownership in stageReward before setting the flag).
+  const lucky = !foolGold && !!run.luckyPending;
   if (lucky) run.luckyPending = false;
   // Fool's Gold: shop stops stocking items entirely (pool filtered to monsters).
   // Manus #331: board-targeted items are never offered while the board is empty —
@@ -95,7 +98,7 @@ const shopFor = (run) => {
     items.push({ species: s.species, cost: s.cost, lvl: 1 + Math.floor(run.day / 4) });
   }
   if (lucky) {
-    const ip = base.filter((s) => s.kind === 'item' && (!run.board.length || !needsBoardTarget(s)));
+    const ip = base.filter((s) => s.kind === 'item' && (run.board.length || !needsBoardTarget(s)));
     if (ip.length) items.splice(1 + Math.floor(rng() * 3), 0, { ...ip[Math.floor(rng() * ip.length)] });
   }
   return items;
@@ -244,12 +247,15 @@ export function makeOpponent(run) {
   const n = Math.min(6, 2 + Math.ceil(run.day / 2));
   const lvl = 1 + Math.floor(run.day / 3) + rint(0, 1, rng);
   const squad = [];
+  // Manus #370 b3: the shop pool now contains items (no `species`) once
+  // data/shop.json overrides BUILTIN_SHOP — opponents draw monsters only.
+  const ids = SPECIES_LIST.filter((id) => SPECIES[id] && SPECIES[id].base);
   for (let i = 0; i < n; i++) {
-    const s = BUILTIN_SHOP[Math.floor(rng() * BUILTIN_SHOP.length)];
-    const c = makeCreature(s.species, lvl);
+    const id = ids[Math.floor(rng() * ids.length)];
+    const c = makeCreature(id, lvl);
     c.stars = rng() < run.day / 22 ? 2 : 1;
     if (c.stars === 2) boostStats(c, 2);
-    c.ability = abilityForSpecies(SPECIES[s.species]);
+    c.ability = abilityForSpecies(SPECIES[id]);
     squad.push(c);
   }
   return { name: ['Quiet Quilter', 'Patchwork Pip', 'Spool Sergeant', 'Thimble Tyrant', 'Basting Bandit', 'Seam Sentry', 'Running-Stitch Rhea', 'Needle Nick', 'Purl Punisher', 'Hemline Hazel'][Math.floor(rng() * 10)], squad };
@@ -494,8 +500,11 @@ function drawShop(ctx, run, t, mouse) {
   ctx.fillText('build your board — 3 same monsters merge to ★★ · max 6 · then BATTLE', VIEW_W / 2, 92);
   ctx.textAlign = 'left';
 
-  // shop offers
-  const SW = 260, SH = 92, X0 = (VIEW_W - SW * 4 - 30) / 2, Y = 120;
+  // shop offers — Manus #370 b2: a Lucky Stitch bonus adds a 5th offer; slots
+  // shrink to fit so nothing overflows the 1280px canvas (4 slots = 260 as before).
+  const N = Math.max(4, run.shop.length);
+  const SW = Math.min(260, Math.floor((VIEW_W - 40 - (N - 1) * 10) / N));
+  const SH = 92, X0 = (VIEW_W - (SW * N + 10 * (N - 1))) / 2, Y = 120;
   run.shop.forEach((offer, i) => {
     const b = { x: X0 + i * (SW + 10), y: Y, w: SW, h: SH };
     run._btns.push({ ...b, id: `buy:${i}` });

@@ -1,10 +1,10 @@
 // draft.js — pre-battle squad draft (pick up to 6 from your full roster, merge
 // duplicates) — the team-building loop that keeps auto-battlers addictive.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=run9';
-import { SPECIES, MOVES } from './data.js?v=run9';
-import { PARTY_MAX } from './config.js?v=run9';
-import { drawCreature } from './art.js?v=run9';
-import { panel, roundRect } from './hud.js?v=run9';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=run10';
+import { SPECIES, MOVES } from './data.js?v=run10';
+import { PARTY_MAX } from './config.js?v=run10';
+import { drawCreature } from './art.js?v=run10';
+import { panel, roundRect } from './hud.js?v=run10';
 
 const COLS = 8;
 const CW = 152, CH = 128;

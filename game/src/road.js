@@ -2,10 +2,10 @@
 // Replaces free-walking field as the run shell: pick a glowing patch -> the
 // node's event fires (showdown battle, rest, loot, peddler, boss). Map is
 // seeded so it survives autosave/restore.
-import { VIEW_W, VIEW_H } from './config.js?v=run9';
-import { mulberry32, pickWeighted } from './random.js?v=run9';
-import { WILD_TABLES, MISSIONS } from './data.js?v=run9';
-import { panel, roundRect } from './hud.js?v=run9';
+import { VIEW_W, VIEW_H } from './config.js?v=run10';
+import { mulberry32, pickWeighted } from './random.js?v=run10';
+import { WILD_TABLES, MISSIONS } from './data.js?v=run10';
+import { panel, roundRect } from './hud.js?v=run10';
 
 const COLS = 10, ROWS = 3;
 const NODE_W = 84, NODE_H = 68;
