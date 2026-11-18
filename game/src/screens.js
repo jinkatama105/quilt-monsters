@@ -1,9 +1,9 @@
 // screens.js — the game's screens: title, codex (creature dex + type chart),
 // victory, defeat, and the battle action layout (buttons + click routing).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js?v=run6';
-import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js?v=run6';
-import { drawCreature, drawSeedstoneIcon } from './art.js?v=run6';
-import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js?v=run6';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js?v=run7';
+import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js?v=run7';
+import { drawCreature, drawSeedstoneIcon } from './art.js?v=run7';
+import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js?v=run7';
 
 function centerText(ctx, text, x, y, font, color) {
   ctx.font = font; ctx.fillStyle = color; ctx.textAlign = 'center';
@@ -117,7 +117,11 @@ export function drawCodex(ctx, team, t) {
   centerText(ctx, '◈ THE VERDANT CODEX ◈', VIEW_W / 2, 54, 'bold 30px monospace', '#3b2c17');
   centerText(ctx, `${team.dexCaught.size} bound · ${team.dexSeen.size} sighted — seen in battle, captured with Seedstones`, VIEW_W / 2, 80, '14px monospace', '#6d5b3c');
 
-  const cols = 4, cellW = 262, cellH = 133, gx = 40, gy = 108;
+  // v5: was cellW 262 — the chart wedge then got only 132px (cx 1108), so its
+  // grid columns ran off-canvas (last col at x 1312) and the footer lines
+  // centred at cx+150 clipped past the right edge. 236px cells free 236px
+  // for the chart (cx 1004): grid ends at cx+217, footers span cx+20..cx+216.
+  const cols = 4, cellW = 236, cellH = 133, gx = 40, gy = 108;
   SPECIES_LIST.forEach((id, i) => {
     const sp = SPECIES[id];
     const x = gx + (i % cols) * cellW, y = gy + Math.floor(i / cols) * cellH;
@@ -155,7 +159,7 @@ export function drawCodex(ctx, team, t) {
   // type chart wedge in the right margin
   const cx = gx + cols * cellW + 20;
   panel(ctx, cx, 112, VIEW_W - cx - 40, 420, 0.92);
-  centerText(ctx, 'TYPE CHART', cx + 150, 140, 'bold 17px monospace', '#3b2c17');
+  centerText(ctx, 'TYPE CHART', cx + 118, 140, 'bold 17px monospace', '#3b2c17');
   ctx.font = '11px monospace';
   ELEMENTS.forEach((att, r) => {
     ctx.fillStyle = ELEMENT_COLORS[att].main;
@@ -166,11 +170,11 @@ export function drawCodex(ctx, team, t) {
       ctx.fillText(mult > 1 ? '×2' : mult < 1 ? '×½' : '×1', cx + 84 + c * 30, 172 + r * 34);
     });
   });
-  centerText(ctx, 'Ember▸Verdant▸Tide▸Ember', cx + 150, 366, '12px monospace', '#6d5b3c');
-  centerText(ctx, 'Volt▸Tide & Gloom', cx + 150, 386, '12px monospace', '#6d5b3c');
-  centerText(ctx, 'Gloom▸Verdant', cx + 150, 406, '12px monospace', '#6d5b3c');
-  drawSeedstoneIcon(ctx, cx + 150, 446, 22, t);
-  centerText(ctx, 'Seedstones bind creatures', cx + 150, 476, '12px monospace', '#6d5b3c');
+  centerText(ctx, 'Ember▸Verdant▸Tide▸Ember', cx + 118, 366, '12px monospace', '#6d5b3c');
+  centerText(ctx, 'Volt▸Tide & Gloom', cx + 118, 386, '12px monospace', '#6d5b3c');
+  centerText(ctx, 'Gloom▸Verdant', cx + 118, 406, '12px monospace', '#6d5b3c');
+  drawSeedstoneIcon(ctx, cx + 118, 446, 22, t);
+  centerText(ctx, 'Seedstones bind creatures', cx + 118, 476, '12px monospace', '#6d5b3c');
 
   drawHudButton(ctx, VIEW_W / 2 - 90, VIEW_H - 66, 180, 44, '‹ BACK (C)', true);
 }

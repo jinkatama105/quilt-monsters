@@ -4,12 +4,12 @@
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run6';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run6';
-import { makeCreature, giveXp } from './team.js?v=run6';
-import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run6';
-import { battleBg, drawBattleBg } from './bg.js?v=run6';
-import { panel, roundRect } from './hud.js?v=run6';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run7';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run7';
+import { makeCreature, giveXp } from './team.js?v=run7';
+import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run7';
+import { battleBg, drawBattleBg } from './bg.js?v=run7';
+import { panel, roundRect } from './hud.js?v=run7';
 
 const R = () => Math.random();
 
@@ -88,6 +88,7 @@ export class Showdown {
     this.captured = null;       // enemy creature caught
     this.shake = 0;
     this.xpGained = 0;
+    this.levelUps = []; // v5: units that leveled up this battle (for the reward screen)
     this.captureFail = 0;       // wobble animation timer on a caught ball
     this.trinketFx();
     this.kindleCheck();
@@ -134,10 +135,13 @@ export class Showdown {
   }
 
   slotPos(side, slot) {
+    // v5: Batomon-style roomy arena. Columns 200px apart (was 180), front
+    // columns 240px apart across the middle (was 160) — 122px clear between
+    // the facing front sprites (was 42px). Rows 330/550 (was 340/545).
     // Front column sits nearest the centre; extra columns march backward.
     const col = Math.floor(slot / 2), row = slot % 2;
-    const x = side === 'player' ? 560 - col * 180 : 720 + col * 180;
-    const y = (row === 0 ? 340 : 545) + (col === 1 ? -12 : 0);
+    const x = side === 'player' ? 520 - col * 200 : 760 + col * 200;
+    const y = (row === 0 ? 330 : 550) + (col === 1 ? -12 : 0);
     return { x, y };
   }
 
@@ -323,9 +327,19 @@ export class Showdown {
     const total = this.squad('enemy').reduce((a, u) => a + Math.round(u.sp.xpYield * (u.c.level / 6 + 1)), 0);
     const standing = this.aliveSquad('player');
     this.xpGained = Math.max(4, Math.round(total * 0.5 / Math.max(1, standing.length)));
+    // v5: the old code popped one 'LEVEL UP!' per level EVENT — a unit jumping
+    // Lv1->Lv3 stacked two identical pops, and each lived only 1.8s under the
+    // 55% end veil, so the banner was effectively never seen. One pop per unit
+    // at its final level, 3.0s life, and the list is recorded so the reward
+    // screen can announce it where it stays readable.
+    this.levelUps = [];
     for (const u of standing) {
-      const evs = giveXp(u.c, this.xpGained);
-      for (const ev of evs) if (ev.kind === 'level') this.pop(this.posOf(u).x, this.posOf(u).y - 112, 'LEVEL UP!', '#ffe14d', 1.8); // v3: was y-84, overlapped the trait/Lv nameplate
+      const before = u.c.level;
+      giveXp(u.c, this.xpGained);
+      if (u.c.level > before) {
+        this.levelUps.push({ name: u.c.nickname, level: u.c.level });
+        this.pop(this.posOf(u).x, this.posOf(u).y - 112, 'LEVEL UP!', '#ffe14d', 3.0); // v3: was y-84, overlapped the trait/Lv nameplate
+      }
     }
   }
 
@@ -393,9 +407,10 @@ export function drawShowdown(ctx, sd, t) {
 
   if (sd.phase === 'vs') { drawVsCard(ctx, sd); return; }
 
-  // arena floor band
+  // arena floor band — v5: taller (240..660) to cover the widened rows
+  // (row-0 nameplates start ~243, row-1 charge bars end ~629).
   ctx.fillStyle = 'rgba(91,70,54,.12)';
-  ctx.fillRect(0, 260, W, 340);
+  ctx.fillRect(0, 240, W, 420);
 
   const shakeX = sd.shake > 0 ? Math.sin(t * 70) * 4 * sd.shake : 0;
   ctx.save(); ctx.translate(shakeX, 0);
@@ -561,7 +576,9 @@ function drawVsCard(ctx, sd) {
     });
     ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center';
     ctx.fillStyle = '#e8f2e4';
-    ctx.fillText(side === 'player' ? 'YOUR SQUAD' : 'WILD SQUAD', x + dir * 110, 520);
+    // v5: was y 520 — the bottom-row units stand at y 480 with feet/shadow
+    // to ~530, so the label sat under their feet. 580 clears them by ~30px.
+    ctx.fillText(side === 'player' ? 'YOUR SQUAD' : 'WILD SQUAD', x + dir * 110, 580);
   };
   ctx.save(); ctx.globalAlpha = k; drawSide('player', 250, 1); drawSide('enemy', W - 250, -1); ctx.restore();
   // VS stamp
@@ -620,8 +637,11 @@ export function drawShowdownHud(ctx, sd, team) {
   drawBar('enemy', W - 456, 'HP');
 
   // speed / pause controls
+  // v6: pill was 50 tall with the status text on its bottom edge (baseline 54,
+  // overlapping the pause/ff buttons) in pale green on cream — barely legible.
+  // Taller pill, status on its own line below the buttons, dark ink text.
   const isPaused = sd.paused;
-  panel(ctx, W / 2 - 120, 8, 240, 50, 0.85);
+  panel(ctx, W / 2 - 130, 8, 260, 62, 0.85);
   for (const b of [showdownButtons(sd)[0], showdownButtons(sd)[1]]) {
     ctx.fillStyle = b.id === 'pause' && isPaused ? '#ffe14d' : 'rgba(255,255,255,.08)';
     roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
@@ -630,9 +650,9 @@ export function drawShowdownHud(ctx, sd, team) {
     ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
     ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 6);
   }
-  ctx.fillStyle = isPaused ? '#ffb14a' : '#9fd8c8';
+  ctx.fillStyle = isPaused ? '#b25e00' : '#3b2c17';
   ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
-  ctx.fillText(isPaused ? 'PAUSED' : sd.speed === 1 ? 'SPEED 1× · NORMAL' : 'SPEED 2× · FAST FORWARD', W / 2, 54);
+  ctx.fillText(isPaused ? 'PAUSED' : sd.speed === 1 ? 'SPEED 1× · NORMAL' : 'SPEED 2× · FAST FORWARD', W / 2, 66);
 
   // unit counters (backpack-style numbers top corners)
   const pl = sd.aliveSquad('player').length, en = sd.aliveSquad('enemy').length;
@@ -663,6 +683,9 @@ export function drawShowdownHud(ctx, sd, team) {
       ctx.fillText(`+${sd.xpGained} XP to every standing unit`, VIEW_W / 2, VIEW_H / 2 + 34);
     }
     ctx.font = '14px monospace'; ctx.fillStyle = '#9fb8a6';
-    ctx.fillText('click to continue', VIEW_W / 2, VIEW_H / 2 + 62);
+    // v5: was VIEW_H/2+62 (y 462) — exactly where the bottom-row units' Lv
+    // (y ~472) and ability (y ~458) nameplates sit. The bottom of the screen
+    // is free during 'end' (no action buttons then); 700 clears the HP bars (~629).
+    ctx.fillText('click to continue', VIEW_W / 2, 700);
   }
 }

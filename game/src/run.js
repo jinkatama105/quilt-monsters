@@ -4,12 +4,12 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run6';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run6';
-import { mulberry32, rint } from './random.js?v=run6';
-import { panel, roundRect, drawSlice } from './hud.js?v=run6';
-import { drawCreature } from './art.js?v=run6';
-import { makeCreature } from './team.js?v=run6';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run7';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run7';
+import { mulberry32, rint } from './random.js?v=run7';
+import { panel, roundRect, drawSlice } from './hud.js?v=run7';
+import { drawCreature } from './art.js?v=run7';
+import { makeCreature } from './team.js?v=run7';
 
 // ------------------------------------------------------------------ data
 export const BUILTIN_TRAINERS = [
@@ -31,13 +31,21 @@ export const BUILTIN_SHOP = [
   { species: 'frostcap', cost: 14 }, { species: 'cindermot', cost: 14 }, { species: 'gloomcap', cost: 16 },
 ];
 
+// The 10 approved trinkets (Muse #299 wording). All hooks live in the engine:
+// column_spd/burn_on_cast/multicast(leftmost)/shield/dread/counter in showdown.js,
+// lucky_stitch + income + reroll_free in run.js, post_battle_heal in main.js.
+// Manus's data/trinkets.json overrides this pool at boot when present.
 export const BUILTIN_TRINKETS = [
-  { id: 'fools_gold', name: "Fool's Gold", text: '+$6 income each Day; shop stops stocking items.', effect: { type: 'income', value: 6 } },
-  { id: 'arcade_coins', name: 'Arcade Coins', text: 'Your first 2 rerolls each Day are free.', effect: { type: 'reroll_free', value: 2 } },
-  { id: 'speed_crest', name: 'Speed Crest', text: 'Right-hand monsters act 15% faster.', effect: { type: 'column_spd', value: 0.15 } },
-  { id: 'thimble', name: 'Iron Thimble', text: '+1 Shield stack to your front monster at battle start.', effect: { type: 'shield', value: 4 } },
-  { id: 'ember_thread', name: 'Ember Thread', text: 'Ember hits leave a burn tick (+2 dmg per turn).', effect: { type: 'burn_on_cast', value: 2 } },
-  { id: 'double_needle', name: 'Double Needle', text: 'One random ally multicasts its next strike.', effect: { type: 'multicast', value: 1 } },
+  { id: 'golden_thimble', name: 'Golden Thimble', text: '+$8 income each Day.', effect: { type: 'income', value: 8 } },
+  { id: 'arcade_buttons', name: 'Arcade Buttons', text: 'Your first 5 rerolls each Day are free.', effect: { type: 'reroll_free', value: 5 } },
+  { id: 'swift_spool', name: 'Swift Spool', text: 'Right-hand monsters act 15% faster.', effect: { type: 'column_spd', value: 0.15 } },
+  { id: 'ember_feather', name: 'Ember Feather', text: 'Ember hits leave a burn tick (+2 dmg per turn).', effect: { type: 'burn_on_cast', value: 2 } },
+  { id: 'storm_needle', name: 'Storm Needle', text: 'Your leftmost monster multicasts its next strike.', effect: { type: 'multicast', value: 1, target: 'leftmost' } },
+  { id: 'patchwork_shield', name: 'Patchwork Shield', text: '+6 Shield stacks to your front monster at battle start.', effect: { type: 'shield', value: 6 } },
+  { id: 'shadow_spool', name: 'Shadow Spool', text: 'Each enemy KO: your Gloom allies gain +3 damage per hit this battle.', effect: { type: 'dread', value: 3 } },
+  { id: 'riposte_charm', name: 'Riposte Charm', text: 'Your monsters counter every hit for 50% of damage taken.', effect: { type: 'counter', value: 50 } },
+  { id: 'lucky_stitch', name: 'Lucky Stitch', text: '25% chance after a win: a bonus item in the next shop.', effect: { type: 'lucky_item', value: 25 } },
+  { id: 'woolly_charm', name: 'Woolly Charm', text: 'No heal between battles; instead your board recovers +2 HP.', effect: { type: 'post_battle_heal', value: 2 } },
 ];
 
 // ------------------------------------------------------------------ run state
@@ -54,7 +62,7 @@ export function makeRun(seed, trainerId = null) {
     phase: 'trainer',                // trainer | shop | battle | reward | champion | over
     reward: null,                    // pending reward payload after a win
     streak: 0, bestDay: 1,
-    champion: false, endless: false,
+    champion: false, endless: false, championShown: false,
   };
 }
 
@@ -116,7 +124,7 @@ export function buy(run, i) {
     applyItem(run, offer);
     return null;
   }
-  if (run.board.length >= 6) return 'board full (6)';
+  if (run.board.length >= 6) return 'board full (max 6)';
   run.coins -= offer.cost;
   run.shop[i] = null;
   const c = makeCreature(offer.species, offer.lvl);
@@ -324,27 +332,38 @@ export function stageReward(run, won) {
     const opts = [];
     const pool = BUILTIN_TRINKETS.filter((t) => !run.trinkets.some((o) => o.id === t.id));
     while (opts.length < 3 && pool.length) opts.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-    run.reward = { gain, trinkets: opts, trinketChosen: false };
+    // v5: carry the real outcome — drawReward used to derive VICTORY/DEFEAT
+    // from trinkets.length, so a WON battle with an exhausted trinket pool
+    // (all 6 owned — normal by Day 7) displayed as DEFEAT + 'you lost a heart'.
+    run.reward = { gain, trinkets: opts, trinketChosen: false, won: true };
     // Lucky Stitch: 25% roll for one bonus item in the NEXT shop
-    if (run.trinkets.some((t) => t.id === 'lucky_stitch') && run.rng() < 0.25) run.luckyPending = true;
+    const luckies = run.trinkets.filter((t) => (t.effect || {}).type === 'lucky_item');
+    for (const lt of luckies) { if (run.rng() < ((lt.effect.value || 25) / 100)) { run.luckyPending = true; break; } }
   } else {
     run.streak = 0;
     run.hearts -= 1;
-    run.reward = { gain: 4, trinkets: [], trinketChosen: true };
+    run.reward = { gain: 4, trinkets: [], trinketChosen: true, won: false };
   }
   run.phase = 'reward';
 }
 
 /** Confirm reward -> advance Day (or end). */
 export function nextDay(run) {
-  const endlessChampion = run.champion;
   run.reward = null;
   if (run.hearts <= 0) { run.phase = 'over'; return; }
-  if (run.day >= 10 && !run.champion) {
-    run.champion = true; run.rank = 'Quilt Champion';
+  // v5: the champion screen used to fire on ANY Day-10 exit — including a
+  // Day-10 LOSS — crowning the run 'QUILT CHAMPION' with 'Day 10 cleared'
+  // even though Day 10 was lost (and the hearts text vs the hearts row then
+  // told two different stories). finishRunBattle records a real Day-10 win
+  // in run.champion; only that opens the champion screen, once.
+  if (run.day >= 10 && run.champion && !run.championShown) {
+    run.championShown = true; run.rank = 'Quilt Champion';
     run.phase = 'champion'; return;
   }
-  run.day += 1; run.bestDay = Math.max(run.bestDay, run.day);
+  // Day 10 lost (champion false): retry Day 10 — the day does not advance
+  // and endless does not start until Day 10 is actually won. Days other
+  // than 10 always advance (including endless Days 11+).
+  if (run.day !== 10) { run.day += 1; run.bestDay = Math.max(run.bestDay, run.day); }
   if (run.day > 10) run.endless = true;
   run.locked = false;
   run._freeUsed = 0; // arcade_coins free rerolls reset each Day
@@ -359,6 +378,7 @@ export function serializeRun(run) {
     rank: run.rank, board: run.board, trinkets: run.trinkets, locked: run.locked, shop: run.shop,
     streak: run.streak, bestDay: run.bestDay, champion: run.champion, endless: run.endless,
     luckyPending: run.luckyPending || false,
+    championShown: run.championShown,
     phase: run.phase === 'battle' ? 'shop' : run.phase };
 }
 export function restoreRun(data) {
@@ -388,7 +408,9 @@ export function drawRun(ctx, run, t, mouse) {
   heartsRow(ctx, 190, 44, run);
   drawSlice(ctx, 'coin_icon', VIEW_W - 196, 24, 22, 22, 6, 1);
   ctx.font = 'bold 22px monospace'; ctx.fillStyle = '#3b2c17';
-  ctx.fillText(`⬤ ${run.coins}`, VIEW_W - 170, 44);
+  // v5: was `⬤ ${run.coins}` — the ⬤ rendered as a black disc in ink, and the
+  // coin icon is already drawn just left of it. Number only.
+  ctx.fillText(`${run.coins}`, VIEW_W - 170, 44);
   ctx.font = 'bold 14px monospace'; ctx.fillStyle = '#3b2c17'; // v3: was 14px #6d5b3c, unreadable on sage
   ctx.fillText(run.rank, 24, 68);
 
@@ -414,41 +436,33 @@ function button(ctx, b, label, hot, sub) {
 function drawTrainerSelect(ctx, run, t, mouse) {
   run._btns = []; // rebuild the hit list every frame (same fix as drawReward)
   ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('PICK YOUR TRAINER', VIEW_W / 2, 96); ctx.textAlign = 'left';
-  // Grid layout: 3 cards per row, up to 2 rows. Was hard-coded to one row of
-  // 3 sized for BUILTIN_TRAINERS only — a 6-trainer JSON (REQQDATA1) fell off
-  // canvas (Manus #351). Rows now wrap and card size shrinks for 2-row grids.
-  const N = BUILTIN_TRAINERS.length;
-  const COLS = 3, rows = Math.max(1, Math.ceil(N / COLS));
-  const Y = rows > 1 ? 128 : 160;
-  const VGAP = rows > 1 ? 22 : 0;
-  // Height auto-fits the canvas: 330 for a single row, shrink to fit more rows.
-  const availH = VIEW_H - Y - 24;
-  const H = Math.min(330, Math.floor((availH - (rows - 1) * VGAP) / rows));
-  const W = rows > 1 ? 280 : 320, GAP = rows > 1 ? 24 : 36;
-  const X0 = (VIEW_W - (W * COLS + GAP * (COLS - 1))) / 2;
+  ctx.fillText('PICK YOUR TRAINER', VIEW_W / 2, 110); ctx.textAlign = 'left';
+  // v6 (Manus #351): one row sized for 3 pushed trainers 4-6 off-canvas.
+  // Grid: 3 per row, cards shrink when a second row is needed so 6 fit in 800px.
+  const perRow = 3, rows = Math.ceil(BUILTIN_TRAINERS.length / perRow);
+  const W = 320, H = rows > 1 ? 290 : 330, GAPX = 36, GAPY = 24;
+  const X0 = (VIEW_W - (W * perRow + GAPX * (perRow - 1))) / 2, Y0 = rows > 1 ? 130 : 160;
+  const sprY = H > 300 ? 100 : 92, sprS = H > 300 ? 1.2 : 1.05;
+  const nameY = H > 300 ? 220 : 198, textY = H > 300 ? 246 : 220;
   BUILTIN_TRAINERS.forEach((tr, i) => {
-    const col = i % COLS, row = Math.floor(i / COLS);
-    const b = { x: X0 + col * (W + GAP), y: Y + row * (H + VGAP), w: W, h: H };
-    run._btns[i] = { ...b, id: `trainer:${tr.id}` };
+    const col = i % perRow, row = Math.floor(i / perRow);
+    const b = { x: X0 + col * (W + GAPX), y: Y0 + row * (H + GAPY), w: W, h: H };
+    run._btns = run._btns || []; run._btns[i] = { ...b, id: `trainer:${tr.id}` };
     const hot = mouse && mouse.x >= b.x && mouse.x <= b.x + b.w && mouse.y >= b.y && mouse.y <= b.y + b.h;
     if (!drawSlice(ctx, 'trainer_frame', b.x, b.y, b.w, b.h, 24, hot ? 1 : 0.92)) {
       ctx.fillStyle = hot ? 'rgba(255,201,60,.28)' : 'rgba(255,201,60,.10)';
       roundRect(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
       ctx.strokeStyle = ELEMENT_COLORS[tr.element] || '#8ef2a0'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
     }
-    // Layout is proportional to card height H (auto-fits 1..3 rows):
-    // sprite sits in the top ~30% band, name at 67%, blurb below that.
-    // Single-row (H=330) lands on the v3-approved 1.2x / y+100 / y+220.
-    const sc = Math.max(0.75, Math.min(1.2, (H * 0.32424) / 80));
-    const heroY = Math.round(H * 0.30), nameY = Math.round(H * 0.67);
-    ctx.save(); ctx.translate(b.x + b.w / 2, b.y + heroY); ctx.scale(sc, sc);
+    // v3: was scale 1.5 at y+120 — the 240px-tall sprite reached the name line (y+220).
+    // 1.2x recentered at y+100 ends at ~y+200, clear of the name glyphs (~y+205).
+    ctx.save(); ctx.translate(b.x + b.w / 2, b.y + sprY); ctx.scale(sprS, sprS);
     drawCreature(ctx, tr.element === 'Ember' ? 'embercub' : tr.element === 'Volt' ? 'voltip' : 'leaflet', 0, 0, t + i * 2, 'idle');
     ctx.restore();
-    ctx.textAlign = 'center'; ctx.fillStyle = '#3b2c17'; ctx.font = `bold ${rows > 1 ? 18 : 22}px monospace`;
+    ctx.textAlign = 'center'; ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 22px monospace';
     ctx.fillText(tr.name, b.x + b.w / 2, b.y + nameY);
-    ctx.font = '12px monospace'; ctx.fillStyle = '#6d5b3c';
-    wrap(ctx, tr.text, b.x + b.w / 2, b.y + nameY + 22, b.w - 30, 15);
+    ctx.font = '13px monospace'; ctx.fillStyle = '#6d5b3c';
+    wrap(ctx, tr.text, b.x + b.w / 2, b.y + textY, b.w - 30, 17);
     ctx.textAlign = 'left';
   });
 }
@@ -486,7 +500,9 @@ function drawShop(ctx, run, t, mouse) {
       ctx.font = 'bold 12px monospace'; ctx.fillStyle = '#6d5b3c';
       wrapLeft(ctx, offer.text || 'one-shot boost', b.x + 16, b.y + 54, b.w - 90, 15);
       ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 16px monospace';
-      ctx.fillText(`⬤ ${offer.cost}`, b.x + 88, b.y + 80);
+      // v5: was `⬤ ${offer.cost}` — the ⬤ rendered as a black disc. Real coin icon + number.
+      drawSlice(ctx, 'coin_icon', b.x + 88, b.y + 66, 16, 16, 6, 1);
+      ctx.fillText(`${offer.cost}`, b.x + 110, b.y + 80);
     } else if (offer) {
       ctx.save(); ctx.translate(b.x + 44, b.y + 46); ctx.scale(0.62, 0.62);
       drawCreature(ctx, offer.species, 0, 0, t + i, 'idle'); ctx.restore();
@@ -495,7 +511,9 @@ function drawShop(ctx, run, t, mouse) {
       ctx.font = 'bold 13px monospace'; ctx.fillStyle = '#6d5b3c';
       ctx.fillText(`Lv ${offer.lvl} · ${SPECIES[offer.species].element}`, b.x + 88, b.y + 60);
       ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 16px monospace';
-      ctx.fillText(`⬤ ${offer.cost}`, b.x + 88, b.y + 80);
+      // v5: was `⬤ ${offer.cost}` — the ⬤ rendered as a black disc. Real coin icon + number.
+      drawSlice(ctx, 'coin_icon', b.x + 88, b.y + 66, 16, 16, 6, 1);
+      ctx.fillText(`${offer.cost}`, b.x + 110, b.y + 80);
     }
     ctx.globalAlpha = 1;
   });
@@ -527,12 +545,23 @@ function drawShop(ctx, run, t, mouse) {
   drawSlice(ctx, 'trinket_bar', X0 - 6, 456, SW * 4 + 42, 44, 12, 0.9);
   ctx.fillStyle = '#6d5b3c'; ctx.font = 'bold 13px monospace';
   ctx.fillText('TRINKETS:', X0, 480);
-  run.trinkets.forEach((tr, i) => {
-    const b = { x: X0 + 90 + i * 118, y: 462, w: 112, h: 30 };
-    ctx.fillStyle = 'rgba(255,201,60,.20)'; roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
-    ctx.strokeStyle = '#c8a355'; ctx.stroke();
-    ctx.fillStyle = '#3b2c17'; ctx.font = '11px monospace'; ctx.fillText(tr.name, b.x + 8, b.y + 19);
-  });
+  // 10-trinket pool: chips shrink to fit the row instead of overflowing the canvas
+  {
+    const avail = VIEW_W - (X0 + 90) - 20;
+    const n = run.trinkets.length || 1;
+    const w = Math.min(112, Math.floor((avail - (n - 1) * 6) / n));
+    const step = w + 6;
+    run.trinkets.forEach((tr, i) => {
+      const b = { x: X0 + 90 + i * step, y: 462, w, h: 30 };
+      ctx.fillStyle = 'rgba(255,201,60,.20)'; roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
+      ctx.strokeStyle = '#c8a355'; ctx.stroke();
+      ctx.fillStyle = '#3b2c17'; ctx.font = '11px monospace';
+      let label = tr.name;
+      while (ctx.measureText(label).width > w - 12 && label.length > 4) label = label.slice(0, -2);
+      if (label !== tr.name) label = label.slice(0, -1) + '.';
+      ctx.fillText(label, b.x + 6, b.y + 19);
+    });
+  }
 
   // merge bonus picker shares the reward row if pending
   if (run.mergeTrinketPending && !run.mergeTrinkets) {
@@ -543,20 +572,29 @@ function drawShop(ctx, run, t, mouse) {
   // action row
   const rerollCost = (Math.max(0, freeRerolls(run) - (run._freeUsed || 0)) + (run.voucher || 0)) > 0 ? 0 : 3;
   const acts = [
-    { id: 'reroll', x: VIEW_W / 2 - 330, label: `REROLL ⬤${rerollCost}` },
+    // v5: was `REROLL ⬤${rerollCost}` — the ⬤ rendered as a black disc.
+    // Label is text-only now; the coin icon is drawn just left of it below.
+    { id: 'reroll', x: VIEW_W / 2 - 330, label: `REROLL ${rerollCost}` },
     { id: `lock:${run.locked ? 'off' : 'on'}`, x: VIEW_W / 2 - 120, label: run.locked ? '🔒 LOCKED' : 'LOCK' },
-    { id: 'battle', x: VIEW_W / 2 + 90, label: 'BATTLE ⚔', w: 240, primary: true },
+    { id: 'battle', x: VIEW_W / 2 + 90, label: 'BATTLE', w: 240, primary: true },
   ];
   for (const a of acts) {
     const b = { x: a.x, y: 540, w: a.w || 200, h: 56 };
     run._btns.push({ ...b, id: a.id });
     button(ctx, { ...b, hot: inRect(mouse, b) }, a.label, inRect(mouse, b));
+    // v5: coin icon for the reroll price — drawn after the panel so it sits
+    // on top, just left of the centred label ('REROLL 3' spans ±40px).
+    if (a.id === 'reroll') drawSlice(ctx, 'coin_icon', b.x + b.w / 2 - 66, b.y + 18, 20, 20, 6, 1);
   }
 
   // pending merge trinket picker overlay
   if (run.mergeTrinketPending && run.mergeTrinkets) drawTrinketRow(ctx, run, mouse, run.mergeTrinkets, 'pick your merge bonus');
 
-  if (!run.board.length) { ctx.fillStyle = '#e85d4a'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center'; ctx.fillText('buy at least one monster before battle', VIEW_W / 2, 630); ctx.textAlign = 'left'; }
+  // v6: run._msg was set on failed buy/sell (e.g. 'board full') but never drawn,
+  // so a full-board click looked dead. Show it here; the empty-board hint only
+  // when there is no message (same line, no overlap).
+  if (run._msg) { ctx.fillStyle = '#e85d4a'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center'; ctx.fillText(run._msg, VIEW_W / 2, 630); ctx.textAlign = 'left'; }
+  else if (!run.board.length) { ctx.fillStyle = '#e85d4a'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center'; ctx.fillText('buy at least one monster before battle', VIEW_W / 2, 630); ctx.textAlign = 'left'; }
 }
 
 function drawTrinketRow(ctx, run, mouse, list, label) {
@@ -594,12 +632,27 @@ function drawReward(ctx, run, mouse) {
   run._btns = [];
   const r = run.reward;
   ctx.textAlign = 'center';
-  ctx.font = 'bold 34px monospace'; ctx.fillStyle = r.gain > 0 ? '#2e9e4f' : '#e85d4a';
-  ctx.fillText(r.trinkets.length ? 'VICTORY!' : 'DEFEAT…', VIEW_W / 2, 140);
+  // v5: verdict comes from r.won now, not trinkets.length — a won battle with
+  // an exhausted trinket pool used to display as DEFEAT + 'you lost a heart'.
+  // (The old title colour also keyed on r.gain > 0, which is 4 even on a loss,
+  // so DEFEAT… was drawn green.)
+  ctx.font = 'bold 34px monospace'; ctx.fillStyle = r.won ? '#2e9e4f' : '#e85d4a';
+  ctx.fillText(r.won ? 'VICTORY!' : 'DEFEAT…', VIEW_W / 2, 140);
   ctx.font = 'bold 20px monospace'; ctx.fillStyle = '#3b2c17';
-  ctx.fillText(`+⬤ ${r.gain}`, VIEW_W / 2, 178);
+  // v5: was `+⬤ ${r.gain}` — the ⬤ rendered as a black disc. Real coin icon
+  // left of the centred number.
+  const gainTxt = `+${r.gain}`;
+  const gainW = ctx.measureText(gainTxt).width;
+  drawSlice(ctx, 'coin_icon', VIEW_W / 2 - gainW / 2 - 28, 162, 20, 20, 6, 1);
+  ctx.fillText(gainTxt, VIEW_W / 2, 178);
   ctx.font = '15px monospace'; ctx.fillStyle = '#6d5b3c';
-  ctx.fillText(r.trinkets.length ? `${run.hearts} hearts left · streak ${run.streak}` : 'you lost a heart', VIEW_W / 2, 204);
+  ctx.fillText(r.won ? `${run.hearts} hearts left · streak ${run.streak}` : 'you lost a heart', VIEW_W / 2, 204);
+  // v5: level-ups from the battle, announced where they stay readable — the
+  // in-battle banner lived 1.8s under the end veil and was never seen.
+  if (r.levelUps && r.levelUps.length) {
+    ctx.font = 'bold 16px monospace'; ctx.fillStyle = '#d99a16';
+    ctx.fillText(`★ LEVEL UP: ${r.levelUps.map((u) => `${u.name} Lv${u.level}`).join(' · ')}`, VIEW_W / 2, 232);
+  }
   ctx.textAlign = 'left';
   if (r.trinkets.length && !r.trinketChosen) {
     drawTrinketRow(ctx, run, mouse, r.trinkets, 'pick a trinket for the win');

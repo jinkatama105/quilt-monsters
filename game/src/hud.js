@@ -1,10 +1,10 @@
 // hud.js — in-game overlay panels drawn on the canvas: field status (zone,
 // party hearts, items, mission tracker) and the battle HUD (HP bars, levels,
 // XP, action wheel, message log).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=run6';
-import { SPECIES, MOVES } from './data.js?v=run6';
-import { MISSIONS } from './data.js?v=run6';
-import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=run6';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS } from './config.js?v=run7';
+import { SPECIES, MOVES } from './data.js?v=run7';
+import { MISSIONS } from './data.js?v=run7';
+import { drawSeedstoneIcon, drawPotionIcon } from './art.js?v=run7';
 
 export function panel(ctx, x, y, w, h, alpha = 0.92) {
   if (drawSlice(ctx, 'hud_panel', x, y, w, h, 24, alpha)) return;
