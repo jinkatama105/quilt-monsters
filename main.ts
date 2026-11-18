@@ -1,39 +1,42 @@
-// main.ts — hands the VERDANT STRUGGLE entry in (Node 22, stdlib only, erasable TS).
-// The game itself lives in ./game as plain static ES-module files that load offline
-// from game/index.html. This program copies game/ and screenshots/ to the output
-// directory and writes dossier.json with the vendored make.fun library.
+// Entrypoint for the make.fun submission. Copies the finished game into the
+// output dir MAKEFUN_OUTPUT_DIR (game/ and screenshots/), then writes
+// dossier.json there using make.fun's own buildDossier, so our file matches
+// byte for byte what the scorer rebuilds from what we hand in.
 //
-// Local run (outside the grader):
-//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-// Local play:
-//   node serve.ts  →  http://localhost:8080
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+// The entry this describes is Quilt Monsters: a pixel auto-battler roguelite.
+// You draft a team of patchwork monsters, then watch the fight play itself
+// out across a run of battles, shops and a road map. The screenshots/*.png
+// (prod-run, run_shop, ui-shop, ui-trainer) cite that loop: a run in
+// progress, the shop between fights, and the team and trainer screens.
+//
+// Run: MAKEFUN_OUTPUT_DIR=/path/to/out node main.ts   (Node 22, no deps)
+
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+// The bounty's caps, from its gate.json. Only text_max_bytes shapes the
+// dossier's bytes; the rest just refuse what is too big.
+const CAPS = {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  game_max_files: 993,
+  game_max_bytes: 50331648,
+  game_path_max_bytes: 1000,
+};
 
-mkdirSync(out, { recursive: true });
-cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
-
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) {
-  cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+const outDir = process.env.MAKEFUN_OUTPUT_DIR;
+if (!outDir) {
+  console.error('MAKEFUN_OUTPUT_DIR is not set: nothing to build');
+  process.exit(1);
 }
 
-// The scorer's caps (gate.json): text_max_bytes shapes the dossier bytes; the rest
-// mirror refusals — at most 4 screenshots ≤ 256 KiB, game/ ≤ 993 entries / 48 MiB,
-// path ≤ 1000 bytes.
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    game_max_files: 993,
-    game_max_bytes: 50331648,
-    game_path_max_bytes: 1000,
-  }),
-);
-console.log(`dossier written to ${join(out, 'dossier.json')}`);
+mkdirSync(outDir, { recursive: true });
+cpSync(join('game'), join(outDir, 'game'), { recursive: true });
+cpSync(join('screenshots'), join(outDir, 'screenshots'), { recursive: true });
+
+// buildDossier reads <dir>/game and <dir>/screenshots, so point it at the copy.
+const dossier = buildDossier(outDir, CAPS);
+const dossierPath = join(outDir, 'dossier.json');
+writeFileSync(dossierPath, dossier);
+console.log(`${dossierPath}: ${dossier.length} bytes`);
