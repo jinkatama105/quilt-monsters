@@ -4,12 +4,12 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run4';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run4';
-import { mulberry32, rint } from './random.js?v=run4';
-import { panel, roundRect, drawSlice } from './hud.js?v=run4';
-import { drawCreature } from './art.js?v=run4';
-import { makeCreature } from './team.js?v=run4';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run5';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run5';
+import { mulberry32, rint } from './random.js?v=run5';
+import { panel, roundRect, drawSlice } from './hud.js?v=run5';
+import { drawCreature } from './art.js?v=run5';
+import { makeCreature } from './team.js?v=run5';
 
 // ------------------------------------------------------------------ data
 export const BUILTIN_TRAINERS = [
@@ -72,6 +72,9 @@ const shopFor = (run) => {
   const rng = run.rng;
   const items = [];
   const foolGold = run.trinkets.some((t) => t.id === 'fools_gold');
+  // Lucky Stitch: after a won battle, one bonus item into the next shop.
+  const lucky = !foolGold && run.trinkets.some((t) => t.id === 'lucky_stitch') && run.luckyPending;
+  if (lucky) run.luckyPending = false;
   // Fool's Gold: shop stops stocking items entirely (pool filtered to monsters).
   // Manus #331: board-targeted items are never offered while the board is empty —
   // buying one then is a wasted purchase (applyItem no-ops with no target).
@@ -82,6 +85,10 @@ const shopFor = (run) => {
     const s = pool[Math.floor(rng() * pool.length)];
     if (s.kind === 'item') { items.push({ ...s }); continue; }
     items.push({ species: s.species, cost: s.cost, lvl: 1 + Math.floor(run.day / 4) });
+  }
+  if (lucky) {
+    const ip = base.filter((s) => s.kind === 'item' && (!run.board.length || !needsBoardTarget(s)));
+    if (ip.length) items.splice(1 + Math.floor(rng() * 3), 0, { ...ip[Math.floor(rng() * ip.length)] });
   }
   return items;
 };
@@ -318,6 +325,8 @@ export function stageReward(run, won) {
     const pool = BUILTIN_TRINKETS.filter((t) => !run.trinkets.some((o) => o.id === t.id));
     while (opts.length < 3 && pool.length) opts.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
     run.reward = { gain, trinkets: opts, trinketChosen: false };
+    // Lucky Stitch: 25% roll for one bonus item in the NEXT shop
+    if (run.trinkets.some((t) => t.id === 'lucky_stitch') && run.rng() < 0.25) run.luckyPending = true;
   } else {
     run.streak = 0;
     run.hearts -= 1;
@@ -349,6 +358,7 @@ export function serializeRun(run) {
   return { seed: run.seed, trainerId: run.trainerId, day: run.day, hearts: run.hearts, coins: run.coins,
     rank: run.rank, board: run.board, trinkets: run.trinkets, locked: run.locked, shop: run.shop,
     streak: run.streak, bestDay: run.bestDay, champion: run.champion, endless: run.endless,
+    luckyPending: run.luckyPending || false,
     phase: run.phase === 'battle' ? 'shop' : run.phase };
 }
 export function restoreRun(data) {

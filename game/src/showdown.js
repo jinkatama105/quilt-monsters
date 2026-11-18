@@ -4,12 +4,12 @@
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run4';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run4';
-import { makeCreature, giveXp } from './team.js?v=run4';
-import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run4';
-import { battleBg, drawBattleBg } from './bg.js?v=run4';
-import { panel, roundRect } from './hud.js?v=run4';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run5';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run5';
+import { makeCreature, giveXp } from './team.js?v=run5';
+import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run5';
+import { battleBg, drawBattleBg } from './bg.js?v=run5';
+import { panel, roundRect } from './hud.js?v=run5';
 
 const R = () => Math.random();
 
@@ -93,7 +93,7 @@ export class Showdown {
     this.kindleCheck();
   }
 
-  /** Run-mode trinket hooks: column_spd (act faster), shield (front monster stacks), burn_on_cast (Ember ticks), multicast (one ally double-strikes). */
+  /** Run-mode trinket hooks: column_spd (act faster), shield (front monster stacks), burn_on_cast (Ember ticks), multicast (double-strike; target:'leftmost' = Storm Needle), counter (Riposte Charm). */
   trinketFx() {
     const run = this._run; if (!run) return;
     const has = (type) => run.trinkets.filter((x) => (x.effect || {}).type === type);
@@ -105,10 +105,13 @@ export class Showdown {
       if (front) front.c.shield = (front.c.shield || 0) + (t.effect.value || 4);
     }
     this.burnOnCast = has('burn_on_cast').reduce((a, t) => a + (t.effect.value || 2), 0);
+    this.counterPct = has('counter').reduce((a, t) => a + (t.effect.value || 50), 0);
     const mc = has('multicast');
     if (mc.length) {
       const pool = this.squad('player').filter((u) => u.alive);
-      const pick = pool[Math.floor(R() * pool.length)];
+      // shortcut: leftmost+random trinkets held together all stack onto the leftmost; fine with 10 fixed trinkets, revisit if pools go dynamic
+      const leftmost = mc.some((t) => (t.effect || {}).target === 'leftmost');
+      const pick = leftmost ? pool.sort((a, b) => a.slot - b.slot)[0] : pool[Math.floor(R() * pool.length)];
       if (pick) pick.c.multicast = mc.reduce((a, t) => a + (t.effect.value || 1), 0);
     }
   }
@@ -231,7 +234,8 @@ export class Showdown {
     u.c.focused = false;
     let def = target.c.stats.def * (target.ability === 'bulwark' ? 1.22 : 1);
     let dmg = Math.max(1, Math.round(((mv.power * stab * atk) / (def * 2)) * (0.85 + R() * 0.2) * mult * eff));
-    if (u.c.tempDmg) dmg += u.c.tempDmg; // Honey Cake: flat damage per hit (next battle only)
+    if (u.c.tempDmg) dmg += u.c.tempDmg; // Honey Cake: flat damage per hit (next battle only, expires)
+    if (u.c.dreadBonus) dmg += u.c.dreadBonus; // Shadow Spool: flat damage per hit, persists this battle
     let crit = false;
     if (u.ability === 'overload' && R() < 0.15) { crit = true; dmg = Math.round(dmg * 1.6); u.skillFx = { kind: 'overload', t: 0.7 }; }
     if (target.ability === 'bulwark' && R() < 0.3) target.skillFx = { kind: 'bulwark', t: 0.7 };
@@ -282,6 +286,15 @@ export class Showdown {
       this.pop(up.x, up.y - 40, back, '#ff8ec4', 1.2);
       if (u.c.hp <= 0) this.faint(u);
     }
+    // Riposte Charm (trinket 'counter'): player monsters always counter for value% of damage taken
+    if (target.alive && target.side === 'player' && this.counterPct > 0 && mv.power > 0) {
+      const back = Math.max(1, Math.round(dmg * this.counterPct / 100));
+      u.c.hp = Math.max(0, u.c.hp - back);
+      u.fx = { kind: 'hurt', t: 0.3 };
+      const up = this.posOf(u);
+      this.pop(up.x, up.y - 40, back, '#ffd24a', 1.2);
+      if (u.c.hp <= 0) this.faint(u);
+    }
     if (target.c.hp <= 0) this.faint(target);
     this.lastDmg = dmg;
   }
@@ -290,6 +303,20 @@ export class Showdown {
     u.alive = false; u.charge = 0; u.fx = null; u.koFx = { t: 0.5 };
     const p = this.posOf(u);
     this.pop(p.x, p.y - 30, 'DOWN', '#d8d8d8', 1.4);
+    // Shadow Spool: each enemy KO, player Gloom allies gain +N flat damage ("dread")
+    if (u.side === 'enemy' && this._run) {
+      const ds = this._run.trinkets.filter((x) => (x.effect || {}).type === 'dread');
+      if (ds.length) {
+        const amt = ds.reduce((a, t) => a + (t.effect.value || 3), 0);
+        for (const g of this.squad('player')) {
+          const sp = SPECIES[g.c.species];
+          if (g.alive && sp && sp.element === 'Gloom') {
+            g.c.dreadBonus = (g.c.dreadBonus || 0) + amt;
+            this.pop(this.posOf(g).x, this.posOf(g).y - 70, `+${amt} DREAD`, '#c9a1ff', 1.1);
+          }
+        }
+      }
+    }
   }
 
   settleXp() {

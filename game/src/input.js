@@ -1,6 +1,6 @@
 // input.js — keyboard and mouse: the canvas is scaled to the viewport, so
 // everything reports view-space coordinates (1280x800) to the screens.
-import { VIEW_W, VIEW_H } from './config.js?v=run4';
+import { VIEW_W, VIEW_H } from './config.js?v=run5';
 
 export class Input {
   constructor(canvas) {

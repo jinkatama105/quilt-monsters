@@ -1,30 +1,30 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=run4';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=run4';
-import { Input } from './input.js?v=run4';
-import { World } from './world.js?v=run4';
-import { TeamManager, makeCreature } from './team.js?v=run4';
-import { startBattle } from './battle.js?v=run4';
-import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons, Showdown as SHOWDOWN_CLASS } from './showdown.js?v=run4';
-import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=run4';
-import { wildSquad, bossSquad } from './data.js?v=run4';
-import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=run4';
-import { makeRun, restoreRun, serializeRun, drawRun, hitRun, loadData as loadRunData, chooseTrainer, buy, sell, rollShop, freeRerolls, autoMerge, stageReward, nextDay, makeOpponent, applyPassive, runSnapshot, TRAINERS_BY_ID } from './run.js?v=run4';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=run5';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=run5';
+import { Input } from './input.js?v=run5';
+import { World } from './world.js?v=run5';
+import { TeamManager, makeCreature } from './team.js?v=run5';
+import { startBattle } from './battle.js?v=run5';
+import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons, Showdown as SHOWDOWN_CLASS } from './showdown.js?v=run5';
+import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=run5';
+import { wildSquad, bossSquad } from './data.js?v=run5';
+import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=run5';
+import { makeRun, restoreRun, serializeRun, drawRun, hitRun, loadData as loadRunData, chooseTrainer, buy, sell, rollShop, freeRerolls, autoMerge, stageReward, nextDay, makeOpponent, applyPassive, runSnapshot, TRAINERS_BY_ID } from './run.js?v=run5';
 
 // Showdown mode (realtime auto-battler) is the default
 // battle engine. Append ?classic=1 to the URL (or set localStorage
 // vs-classic='1') to fall back to the old turn-based duel. See README.
 const SHOWDOWN = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=run4';
-import { drawFieldHud, panel } from './hud.js?v=run4';
-import { PALETTE } from './config.js?v=run4';
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=run5';
+import { drawFieldHud, panel } from './hud.js?v=run5';
+import { PALETTE } from './config.js?v=run5';
 function roundRectC(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=run4';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=run4';
-import { saveGame, loadGame, canSave } from './save.js?v=run4';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=run5';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=run5';
+import { saveGame, loadGame, canSave } from './save.js?v=run5';
 const ROAD = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 // Day-loop roguelike (Batomon/SAP style) — the newest shell; ?road=1 falls back
 // to the quilt node map, ?classic=1 to the old field game.
@@ -432,8 +432,13 @@ function finishRunBattle(b) {
   state.battle = null;
   state.mode = 'run';
   const won = b.winner === 'player';
-  // heal board for the next fight (hp ticks are per-run-resource, hearts are the real loss)
-  for (const c of run.board) { c.hp = c.stats.hp; c.tempDmg = 0; c.multicast = 0; } // Honey Cake / Double Needle: next-battle-only effects expire
+  // Board hp for the next fight (hp ticks are per-run-resource, hearts are the real loss)
+  const woolly = run.trinkets.filter((t) => (t.effect || {}).type === 'post_battle_heal');
+  for (const c of run.board) {
+    c.tempDmg = 0; c.multicast = 0; c.dreadBonus = 0; // Honey Cake / Double Needle / Shadow Spool: next-battle-only effects expire
+    // Woolly Charm replaces the full heal with +N (chips persist across battles)
+    c.hp = woolly.length ? Math.min(c.stats.hp, c.hp + woolly.reduce((a, t) => a + (t.effect.value || 2), 0)) : c.stats.hp;
+  }
   run.board = run.board.filter((c) => c.hp > 0); // KO'd monsters survive (auto-battler: board persists; keep all)
   if (won) applyPassive(run, true);
   stageReward(run, won);
@@ -776,8 +781,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=run4';
-import { MOVES as MOVES_TABLE } from './data.js?v=run4';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=run5';
+import { MOVES as MOVES_TABLE } from './data.js?v=run5';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {
