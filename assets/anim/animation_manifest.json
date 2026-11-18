@@ -1,0 +1,27 @@
+{
+  "pack": "REQ MONSPEC1 - Quilt Edition",
+  "format": "PNG RGBA with transparency",
+  "canvas_px": [2048, 2048],
+  "grid": {
+    "columns": 4,
+    "rows": 4,
+    "cell_px": [512, 512],
+    "cell_order": "row-major; frame indices 0-3 progress left-to-right"
+  },
+  "row_order_top_to_bottom": ["idle", "attack", "skill", "defeat"],
+  "frames_per_animation": 4,
+  "monsters": [
+    {"id": "pyrelamb", "file": "pyrelamb_spritesheet.png"},
+    {"id": "ashwing", "file": "ashwing_spritesheet.png"},
+    {"id": "mosskip", "file": "mosskip_spritesheet.png"},
+    {"id": "brambletusk", "file": "brambletusk_spritesheet.png"},
+    {"id": "zipfinch", "file": "zipfinch_spritesheet.png"},
+    {"id": "thunderhare", "file": "thunderhare_spritesheet.png"},
+    {"id": "brinebell", "file": "brinebell_spritesheet.png"},
+    {"id": "moonseal", "file": "moonseal_spritesheet.png"},
+    {"id": "duskowl", "file": "duskowl_spritesheet.png"},
+    {"id": "shadehare", "file": "shadehare_spritesheet.png"}
+  ],
+  "playback_rate_fps": null,
+  "notes": "Four animation states per monster, four frames per state. Playback FPS is intentionally left for engine tuning."
+}

@@ -51,7 +51,7 @@ export function drawTitle(ctx, t) {
     ctx.strokeStyle = 'rgba(159,213,168,0.85)'; ctx.lineWidth = 3; ctx.stroke();
     ctx.restore();
   }
-  centerText(ctx, 'VERDANT STRUGGLE', VIEW_W / 2, 168, 'bold 58px monospace', PALETTE.paper);
+  centerText(ctx, 'QUILT MONSTER SHOWDOWN', VIEW_W / 2, 168, 'bold 58px monospace', PALETTE.paper);
   centerText(ctx, 'explore · battle · capture the three Tribus', VIEW_W / 2, 212, '18px monospace', '#9fd5a8');
 
   const pulse = 1 + Math.sin(t * 3) * 0.02;
@@ -192,7 +192,7 @@ export function drawVictory(ctx, result, t) {
   drawCreature(ctx, 'verdanom', 980, 560, t + 2, 'idle');
   panel(ctx, VIEW_W / 2 - 360, 70, 720, 150, 0.92);
   centerText(ctx, 'THE SHRINE FALLS SILENT', VIEW_W / 2, 128, 'bold 42px monospace', '#e8d5ff');
-  centerText(ctx, 'Nocturne is bound — Verdant Struggle is won', VIEW_W / 2, 172, '18px monospace', '#9fd5a8');
+  centerText(ctx, 'Nocturne is bound — the showdown is won', VIEW_W / 2, 172, '18px monospace', '#9fd5a8');
 
   panel(ctx, VIEW_W / 2 - 260, 590, 520, 140, 0.94);
   const score = victoryScore(result);
