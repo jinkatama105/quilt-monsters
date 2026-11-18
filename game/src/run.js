@@ -4,12 +4,12 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run8';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run8';
-import { mulberry32, rint } from './random.js?v=run8';
-import { panel, roundRect, drawSlice } from './hud.js?v=run8';
-import { drawCreature } from './art.js?v=run8';
-import { makeCreature } from './team.js?v=run8';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run9';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run9';
+import { mulberry32, rint } from './random.js?v=run9';
+import { panel, roundRect, drawSlice } from './hud.js?v=run9';
+import { drawCreature } from './art.js?v=run9';
+import { makeCreature } from './team.js?v=run9';
 
 // ------------------------------------------------------------------ data
 export const BUILTIN_TRAINERS = [
@@ -142,7 +142,7 @@ export function buy(run, i) {
  *  element2 {element}                         grant a second element (rainbow berry)
  *  reroll_free_once                           next reroll is free (voucher)
  *  Unknown type = cosmetic, still consumable. */
-function applyItem(run, offer) {
+export function applyItem(run, offer) {
   const e = offer.effect || {};
   const pickRandom = (n) => run.board.slice().sort(() => run.rng() - 0.5).slice(0, n);
   if (e.type === 'heal_board') {
@@ -174,6 +174,13 @@ function applyItem(run, offer) {
     run.voucher = (run.voucher || 0) + 1;
   } else if (e.type === 'shield_next') {
     run.itemShield = (run.itemShield || 0) + (e.value || 4); // consumed at battle start in startRunBattle
+  } else if (e.type === 'lucky_item') {
+    // as a SHOP item (Manus data): grant the pending lucky bonus immediately (value = % chance, default 25)
+    if (run.rng() < ((e.value || 25) / 100)) run.luckyPending = true;
+  } else if (e.type === 'trinket') {
+    // buy a named trinket from the built-in pool; unknown id or already owned = still consumable (coin sink)
+    const t = BUILTIN_TRINKETS.find((x) => x.id === e.id);
+    if (t && !run.trinkets.some((x) => x.id === t.id)) run.trinkets.push({ ...t });
   }
 }
 

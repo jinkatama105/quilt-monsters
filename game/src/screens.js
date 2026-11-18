@@ -1,9 +1,9 @@
 // screens.js — the game's screens: title, codex (creature dex + type chart),
 // victory, defeat, and the battle action layout (buttons + click routing).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js?v=run8';
-import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js?v=run8';
-import { drawCreature, drawSeedstoneIcon } from './art.js?v=run8';
-import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js?v=run8';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js?v=run9';
+import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js?v=run9';
+import { drawCreature, drawSeedstoneIcon } from './art.js?v=run9';
+import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js?v=run9';
 
 function centerText(ctx, text, x, y, font, color) {
   ctx.font = font; ctx.fillStyle = color; ctx.textAlign = 'center';
@@ -140,7 +140,7 @@ export function drawCodex(ctx, team, t) {
   //  (b) the other symptoms (rightmost column + footer 's' cut) were the
   //      STALE cache: that browser kept serving Hermes's trainer-only
   //      build (old 132px chart wedge, cx 1108, last col x 1312 off-canvas).
-  //      The ?v=run8 relabel breaks that cache identity.
+  //      The ?v=run9 relabel breaks that cache identity.
   //  Measured layout in the 236px panel (cx..cx+236): pad 16 | label 59.6 |
   //  gap 10.4 | 5 cols @30px, first at cx+86, last text ends cx+219.2
   //  (16.8px margin) | footer 180.5px centred at cx+118 (27.8px margins).

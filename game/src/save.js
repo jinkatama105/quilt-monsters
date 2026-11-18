@@ -1,10 +1,10 @@
 // save.js — localStorage autosave that degrades gracefully when storage is
 // blocked (private mode, sandboxed iframes): every call is wrapped, nothing
 // outside the save format may throw.
-import { SPECIES } from './data.js?v=run8';
-import { TeamManager } from './team.js?v=run8';
-import { World } from './world.js?v=run8';
-import { serializeRun as serializeRunLite } from './run.js?v=run8';
+import { SPECIES } from './data.js?v=run9';
+import { TeamManager } from './team.js?v=run9';
+import { World } from './world.js?v=run9';
+import { serializeRun as serializeRunLite } from './run.js?v=run9';
 
 const KEY = 'verdant-s...e-v2';  // v2 = quilt roster; old v1 saves are ignored (fresh start)
 

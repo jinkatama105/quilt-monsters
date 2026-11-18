@@ -1,30 +1,30 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=run8';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=run8';
-import { Input } from './input.js?v=run8';
-import { World } from './world.js?v=run8';
-import { TeamManager, makeCreature } from './team.js?v=run8';
-import { startBattle } from './battle.js?v=run8';
-import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons, Showdown as SHOWDOWN_CLASS } from './showdown.js?v=run8';
-import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=run8';
-import { wildSquad, bossSquad } from './data.js?v=run8';
-import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=run8';
-import { makeRun, restoreRun, serializeRun, drawRun, hitRun, loadData as loadRunData, chooseTrainer, buy, sell, rollShop, freeRerolls, autoMerge, stageReward, nextDay, makeOpponent, applyPassive, runSnapshot, TRAINERS_BY_ID } from './run.js?v=run8';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=run9';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=run9';
+import { Input } from './input.js?v=run9';
+import { World } from './world.js?v=run9';
+import { TeamManager, makeCreature } from './team.js?v=run9';
+import { startBattle } from './battle.js?v=run9';
+import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons, Showdown as SHOWDOWN_CLASS } from './showdown.js?v=run9';
+import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=run9';
+import { wildSquad, bossSquad } from './data.js?v=run9';
+import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=run9';
+import { makeRun, restoreRun, serializeRun, drawRun, hitRun, loadData as loadRunData, chooseTrainer, buy, sell, rollShop, freeRerolls, autoMerge, stageReward, nextDay, makeOpponent, applyPassive, runSnapshot, TRAINERS_BY_ID } from './run.js?v=run9';
 
 // Showdown mode (realtime auto-battler) is the default
 // battle engine. Append ?classic=1 to the URL (or set localStorage
 // vs-classic='1') to fall back to the old turn-based duel. See README.
 const SHOWDOWN = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=run8';
-import { drawFieldHud, panel } from './hud.js?v=run8';
-import { PALETTE } from './config.js?v=run8';
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=run9';
+import { drawFieldHud, panel } from './hud.js?v=run9';
+import { PALETTE } from './config.js?v=run9';
 function roundRectC(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore, codexNavRects, codexGetPage, codexSetPage, codexPageCount } from './screens.js?v=run8';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=run8';
-import { saveGame, loadGame, canSave } from './save.js?v=run8';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore, codexNavRects, codexGetPage, codexSetPage, codexPageCount } from './screens.js?v=run9';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=run9';
+import { saveGame, loadGame, canSave } from './save.js?v=run9';
 const ROAD = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 // Day-loop roguelike (Batomon/SAP style) — the newest shell; ?road=1 falls back
 // to the quilt node map, ?classic=1 to the old field game.
@@ -788,8 +788,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=run8';
-import { MOVES as MOVES_TABLE } from './data.js?v=run8';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=run9';
+import { MOVES as MOVES_TABLE } from './data.js?v=run9';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {
