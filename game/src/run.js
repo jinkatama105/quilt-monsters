@@ -80,11 +80,14 @@ const shopFor = (run) => {
   const rng = run.rng;
   const items = [];
   const foolGold = run.trinkets.some((t) => t.id === 'fools_gold');
-  // Lucky Stitch: a pending bonus (from the trinket roll OR the shop item) puts
-  // one bonus item into the next shop. Manus #370 b1: the item's own grant must
-  // not be gated on also owning the trinket (trinket rolls already check
-  // ownership in stageReward before setting the flag).
-  const lucky = !foolGold && !!run.luckyPending;
+  // Lucky Stitch: after a won battle, one bonus item into the next shop.
+  // run10 (Manus #368 blocker 1): the flag is ALSO set by buying a
+  // lucky_item shop row (applyItem rolls it immediately) — so it must be
+  // consumed independently of owning the lucky_stitch trinket. Before,
+  // a standalone purchased item rolled the flag but the gate demanded the
+  // trinket, so rollShop gave only 4 slots and the flag stayed pending.
+  // Fool's Gold still blocks it: with fools_gold the shop stocks no items.
+  const lucky = !foolGold && run.luckyPending;
   if (lucky) run.luckyPending = false;
   // Fool's Gold: shop stops stocking items entirely (pool filtered to monsters).
   // Manus #331: board-targeted items are never offered while the board is empty —
@@ -98,6 +101,11 @@ const shopFor = (run) => {
     items.push({ species: s.species, cost: s.cost, lvl: 1 + Math.floor(run.day / 4) });
   }
   if (lucky) {
+    // run10 (Manus #368 blocker 4): the filter was inverted —
+    // (!board.length || !needsBoardTarget) admitted board-targeted items
+    // (e.g. Honey Cake) on an EMPTY board and excluded them on a nonempty
+    // one. Now it matches the main shop filter: board-targeted items are
+    // only offered when the board is non-empty.
     const ip = base.filter((s) => s.kind === 'item' && (run.board.length || !needsBoardTarget(s)));
     if (ip.length) items.splice(1 + Math.floor(rng() * 3), 0, { ...ip[Math.floor(rng() * ip.length)] });
   }
@@ -247,15 +255,19 @@ export function makeOpponent(run) {
   const n = Math.min(6, 2 + Math.ceil(run.day / 2));
   const lvl = 1 + Math.floor(run.day / 3) + rint(0, 1, rng);
   const squad = [];
-  // Manus #370 b3: the shop pool now contains items (no `species`) once
-  // data/shop.json overrides BUILTIN_SHOP — opponents draw monsters only.
-  const ids = SPECIES_LIST.filter((id) => SPECIES[id] && SPECIES[id].base);
+  // run10 (Manus #368 blocker 2): the shop table can hold item rows
+  // (kind:'item', no species) — sampling it raw made makeCreature(undefined)
+  // throw "Cannot read properties of undefined (reading 'base')". Opponents
+  // are monsters only; fall back to the full species roster if the shop
+  // holds no monster rows at all.
+  const pool = BUILTIN_SHOP.filter((s) => s.kind !== 'item' && s.species && SPECIES[s.species]);
+  const src = pool.length ? pool : SPECIES_LIST.map((id) => ({ species: id }));
   for (let i = 0; i < n; i++) {
-    const id = ids[Math.floor(rng() * ids.length)];
-    const c = makeCreature(id, lvl);
+    const s = src[Math.floor(rng() * src.length)];
+    const c = makeCreature(s.species, lvl);
     c.stars = rng() < run.day / 22 ? 2 : 1;
     if (c.stars === 2) boostStats(c, 2);
-    c.ability = abilityForSpecies(SPECIES[id]);
+    c.ability = abilityForSpecies(SPECIES[s.species]);
     squad.push(c);
   }
   return { name: ['Quiet Quilter', 'Patchwork Pip', 'Spool Sergeant', 'Thimble Tyrant', 'Basting Bandit', 'Seam Sentry', 'Running-Stitch Rhea', 'Needle Nick', 'Purl Punisher', 'Hemline Hazel'][Math.floor(rng() * 10)], squad };
@@ -392,6 +404,10 @@ export function serializeRun(run) {
     streak: run.streak, bestDay: run.bestDay, champion: run.champion, endless: run.endless,
     luckyPending: run.luckyPending || false,
     championShown: run.championShown,
+    // run10: a save left on the reward screen must restore its payload —
+    // without it, resume lands on phase 'reward' with run.reward null and
+    // drawReward draws a blank screen with no buttons (blank-resume defect).
+    reward: run.reward || null,
     phase: run.phase === 'battle' ? 'shop' : run.phase };
 }
 export function restoreRun(data) {
@@ -399,6 +415,11 @@ export function restoreRun(data) {
   Object.assign(run, data);
   run.rng = mulberry32((data.seed ^ (data.day * 2654435761)) >>> 0);
   if (data.trinkets) run.trinkets = data.trinkets;
+  // run10: old saves (phase 'reward', no reward payload — pre-run10 saves
+  // never persisted it) would resume to a blank reward screen with no
+  // buttons and no in-game reset. Fall back to the shop instead of
+  // leaving the player stuck.
+  if (run.phase === 'reward' && !run.reward) run.phase = 'shop';
   return run;
 }
 
@@ -500,11 +521,13 @@ function drawShop(ctx, run, t, mouse) {
   ctx.fillText('build your board — 3 same monsters merge to ★★ · max 6 · then BATTLE', VIEW_W / 2, 92);
   ctx.textAlign = 'left';
 
-  // shop offers — Manus #370 b2: a Lucky Stitch bonus adds a 5th offer; slots
-  // shrink to fit so nothing overflows the 1280px canvas (4 slots = 260 as before).
-  const N = Math.max(4, run.shop.length);
-  const SW = Math.min(260, Math.floor((VIEW_W - 40 - (N - 1) * 10) / N));
-  const SH = 92, X0 = (VIEW_W - (SW * N + 10 * (N - 1))) / 2, Y = 120;
+  // shop offers
+  // run10 (Manus #368 blocker 3): the Lucky bonus makes 5 offers, but the
+  // layout was fixed for 4 — slot 5 landed at x 1185–1445, off the 1280
+  // canvas (cost text + hitbox clipped). Shrink the slots when a 5th offer
+  // is present; the 4-offer layout is byte-identical (SW 260, X0 105).
+  const slots = run.shop.length;
+  const SW = slots > 4 ? 200 : 260, SH = 92, X0 = (VIEW_W - SW * slots - 10 * (slots - 1)) / 2, Y = 120;
   run.shop.forEach((offer, i) => {
     const b = { x: X0 + i * (SW + 10), y: Y, w: SW, h: SH };
     run._btns.push({ ...b, id: `buy:${i}` });
@@ -563,7 +586,7 @@ function drawShop(ctx, run, t, mouse) {
   if (run.mergeTrinketPending) { ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 14px monospace'; ctx.fillText('★ MERGE BONUS: pick a trinket below', X0, 452); }
 
   // trinket strip
-  drawSlice(ctx, 'trinket_bar', X0 - 6, 456, SW * 4 + 42, 44, 12, 0.9);
+  drawSlice(ctx, 'trinket_bar', X0 - 6, 456, SW * slots + 10 * (slots - 1) + 12, 44, 12, 0.9);
   ctx.fillStyle = '#6d5b3c'; ctx.font = 'bold 13px monospace';
   ctx.fillText('TRINKETS:', X0, 480);
   // 10-trinket pool: chips shrink to fit the row instead of overflowing the canvas
