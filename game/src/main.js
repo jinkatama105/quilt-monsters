@@ -403,6 +403,12 @@ function startRunBattle(run) {
   const opp = makeOpponent(run);
   const playerUnits = run.board.filter((c) => c.hp > 0);
   if (!playerUnits.length) { run.phase = 'shop'; return; }
+  if (run.itemShield) { // one-shot shield from shop items: leftmost +HP, consumed now
+    const first = playerUnits[0];
+    first.stats = { ...first.stats, hp: first.stats.hp + run.itemShield };
+    first.hp = first.stats.hp;
+    run.itemShield = 0;
+  }
   // fresh HP each battle (SAP resets between fights? no — stats persist; heal to full at Day start instead)
   const sd = new SHOWDOWN_CLASS(playerUnits, opp.squad, 'run', null);
   sd.zone = ['moss', 'cliff', 'temple'][run.day % 3];

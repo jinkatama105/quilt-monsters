@@ -5,7 +5,7 @@
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
 import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run1';
-import { SPECIES, abilityForSpecies } from './data.js?v=run1';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run1';
 import { mulberry32, rint } from './random.js?v=run1';
 import { panel, roundRect, drawSlice } from './hud.js?v=run1';
 import { drawCreature } from './art.js?v=run1';
@@ -61,8 +61,12 @@ export function makeRun(seed, trainerId = null) {
 const shopFor = (run) => {
   const rng = run.rng;
   const items = [];
+  const foolGold = run.trinkets.some((t) => t.id === 'fools_gold');
+  // Fool's Gold: shop stops stocking items entirely (pool filtered to monsters).
+  const pool = foolGold ? BUILTIN_SHOP.filter((s) => s.kind !== 'item') : BUILTIN_SHOP;
   for (let i = 0; i < 4; i++) {
-    const s = BUILTIN_SHOP[Math.floor(rng() * BUILTIN_SHOP.length)];
+    const s = pool[Math.floor(rng() * pool.length)];
+    if (s.kind === 'item') { items.push({ ...s }); continue; }
     items.push({ species: s.species, cost: s.cost, lvl: 1 + Math.floor(run.day / 4) });
   }
   return items;
@@ -80,11 +84,17 @@ export function freeRerolls(run) {
   return run.trinkets.reduce((a, x) => a + (x.effect.type === 'reroll_free' ? x.effect.value : 0), 0);
 }
 
-/** Buy shop slot i onto the board (merge-3 auto). Returns error string or null. */
+/** Buy shop slot i (monster -> board w/ auto-merge; item -> instant effect). Error string or null. */
 export function buy(run, i) {
   const offer = run.shop[i]; if (!offer) return 'empty slot';
-  if (run.board.length >= 6) return 'board full (6)';
   if (run.coins < offer.cost) return 'not enough coins';
+  if (offer.kind === 'item') {
+    run.coins -= offer.cost;
+    run.shop[i] = null;
+    applyItem(run, offer);
+    return null;
+  }
+  if (run.board.length >= 6) return 'board full (6)';
   run.coins -= offer.cost;
   run.shop[i] = null;
   const c = makeCreature(offer.species, offer.lvl);
@@ -92,6 +102,25 @@ export function buy(run, i) {
   run.board.push(c);
   autoMerge(run);
   return null;
+}
+
+/** Item effects (shop.json kind:'item'). Types: heal_board, buff (stat on target 'all'|'lowest'|'leftmost'), shield_next (battle-start shield bonus). Unknown type = cosmetic, still consumable. */
+function applyItem(run, offer) {
+  const e = offer.effect || {};
+  if (e.type === 'heal_board') {
+    run.board.forEach((c) => { c.hp = Math.min(c.maxHp, c.hp + (e.value || 10)); });
+  } else if (e.type === 'buff') {
+    const stat = e.stat || 'atk';
+    let targets = run.board;
+    if (e.target === 'lowest') targets = [run.board.slice().sort((a, b) => a.stats[stat] - b.stats[stat])[0]].filter(Boolean);
+    if (e.target === 'leftmost') targets = run.board.length ? [run.board[0]] : [];
+    targets.forEach((c) => {
+      c.stats[stat] = (c.stats[stat] || 0) + (e.value || 1);
+      if (stat === 'hp') { c.maxHp = c.stats.hp; c.hp = c.stats.hp; }
+    });
+  } else if (e.type === 'shield_next') {
+    run.itemShield = (run.itemShield || 0) + (e.value || 4); // consumed at battle start in stageBattle
+  }
 }
 
 /** Sell board slot i for half cost. */
@@ -194,14 +223,30 @@ export function applyPassive(run, won) {
 }
 
 // live trainer table = JSON overlay (when data/trainers.json ships) merged over built-ins
+const ELEMENT_DEFAULT_MOVE = { Ember: 'emberDart', Verdant: 'leafLash', Volt: 'sparkJolt', Tide: 'bubbleFlick', Gloom: 'gloomSpore' };
 export let TRAINERS_BY_ID = Object.fromEntries(BUILTIN_TRAINERS.map((t) => [t.id, t]));
 export async function loadData() {
   try {
-    const [tr, sh, tk] = await Promise.all([
+    const [tr, sh, tk, mn] = await Promise.all([
       fetch('data/trainers.json').then((r) => r.ok ? r.json() : null).catch(() => null),
       fetch('data/shop.json').then((r) => r.ok ? r.json() : null).catch(() => null),
       fetch('data/trinkets.json').then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch('data/monsters.json').then((r) => r.ok ? r.json() : null).catch(() => null),
     ]);
+    if (Array.isArray(mn) && mn.length) {
+      // merge/override species rows into SPECIES (keeps art/moves fallbacks for unknown art)
+      for (const m of mn) {
+        if (!m || !m.id) continue;
+        SPECIES[m.id] = {
+          id: m.id, name: m.name || m.id, element: m.element || 'Gloom',
+          desc: m.desc || '', base: m.base || { hp: 24, atk: 8, def: 6, spd: 7 },
+          xpYield: m.xpYield || 30, rarity: m.rarity || 2,
+          ability: m.ability || undefined,
+          learn: Array.isArray(m.learn) && m.learn.length ? m.learn : [{ lv: 1, move: (ELEMENT_DEFAULT_MOVE[m.element] || 'gloomSpore') }],
+        };
+        if (Array.isArray(SPECIES_LIST) && !SPECIES_LIST.includes(m.id)) SPECIES_LIST.push(m.id);
+      }
+    }
     if (Array.isArray(tr) && tr.length) { BUILTIN_TRAINERS.length = 0; BUILTIN_TRAINERS.push(...tr); TRAINERS_BY_ID = Object.fromEntries(tr.map((t) => [t.id, t])); }
     if (Array.isArray(sh) && sh.length) { BUILTIN_SHOP.length = 0; BUILTIN_SHOP.push(...sh); }
     if (Array.isArray(tk) && tk.length) { BUILTIN_TRINKETS.length = 0; BUILTIN_TRINKETS.push(...tk); }
@@ -356,7 +401,14 @@ function drawShop(ctx, run, t, mouse) {
       roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
       ctx.strokeStyle = offer ? EL_COLOR(offer.species) : '#556'; ctx.lineWidth = 2; ctx.stroke();
     }
-    if (offer) {
+    if (offer && offer.kind === 'item') {
+      ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 15px monospace';
+      ctx.fillText(offer.name || 'Item', b.x + 16, b.y + 34);
+      ctx.font = '12px monospace'; ctx.fillStyle = '#9fb8a6';
+      wrapLeft(ctx, offer.text || 'one-shot boost', b.x + 16, b.y + 54, b.w - 90, 15);
+      ctx.fillStyle = '#ffd26a'; ctx.font = 'bold 16px monospace';
+      ctx.fillText(`⬤ ${offer.cost}`, b.x + 88, b.y + 80);
+    } else if (offer) {
       ctx.save(); ctx.translate(b.x + 44, b.y + 46); ctx.scale(0.62, 0.62);
       drawCreature(ctx, offer.species, 0, 0, t + i, 'idle'); ctx.restore();
       ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 15px monospace';
