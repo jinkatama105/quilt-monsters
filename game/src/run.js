@@ -7,7 +7,7 @@
 import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run1';
 import { SPECIES, abilityForSpecies } from './data.js?v=run1';
 import { mulberry32, rint } from './random.js?v=run1';
-import { panel, roundRect } from './hud.js?v=run1';
+import { panel, roundRect, drawSlice } from './hud.js?v=run1';
 import { drawCreature } from './art.js?v=run1';
 import { makeCreature } from './team.js?v=run1';
 
@@ -276,9 +276,11 @@ export function drawRun(ctx, run, t, mouse) {
   panel(ctx, 0, 0, VIEW_W, VIEW_H, 0.88);
   ctx.textAlign = 'left';
   // top bar: day / hearts / coins / rank
+  drawSlice(ctx, 'day_banner', 14, 12, 150, 44, 14, 0.9);
   ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#ffe9b1';
   ctx.fillText(`DAY ${run.day}${run.endless ? ' ∞' : ''}`, 24, 44);
   heartsRow(ctx, 190, 44, run);
+  drawSlice(ctx, 'coin_icon', VIEW_W - 196, 24, 22, 22, 6, 1);
   ctx.font = 'bold 22px monospace'; ctx.fillStyle = '#ffd26a';
   ctx.fillText(`⬤ ${run.coins}`, VIEW_W - 170, 44);
   ctx.font = '14px monospace'; ctx.fillStyle = '#9fd8c8';
@@ -292,9 +294,11 @@ export function drawRun(ctx, run, t, mouse) {
 }
 
 function button(ctx, b, label, hot, sub) {
-  ctx.fillStyle = hot ? 'rgba(255,209,106,.22)' : 'rgba(255,255,255,.06)';
-  roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
-  ctx.strokeStyle = hot ? '#ffd26a' : '#6f8f7d'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
+  if (!drawSlice(ctx, 'shop_button', b.x, b.y, b.w, Math.max(48, b.h), 18, hot ? 1 : 0.9)) {
+    ctx.fillStyle = hot ? 'rgba(255,209,106,.22)' : 'rgba(255,255,255,.06)';
+    roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
+    ctx.strokeStyle = hot ? '#ffd26a' : '#6f8f7d'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
+  }
   ctx.fillStyle = '#e8f2e4'; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label, b.x + b.w / 2, b.y + (sub ? 26 : b.h / 2 + 6));
   if (sub) { ctx.font = '12px monospace'; ctx.fillStyle = '#9fb8a6'; ctx.fillText(sub, b.x + b.w / 2, b.y + 48); }
@@ -309,9 +313,11 @@ function drawTrainerSelect(ctx, run, t, mouse) {
     const b = { x: X0 + i * (W + GAP), y: Y, w: W, h: 330 };
     run._btns = run._btns || []; run._btns[i] = { ...b, id: `trainer:${tr.id}` };
     const hot = mouse && mouse.x >= b.x && mouse.x <= b.x + b.w && mouse.y >= b.y && mouse.y <= b.y + b.h;
-    ctx.fillStyle = hot ? 'rgba(255,209,106,.10)' : 'rgba(255,255,255,.05)';
-    roundRect(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
-    ctx.strokeStyle = ELEMENT_COLORS[tr.element] || '#8ef2a0'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
+    if (!drawSlice(ctx, 'trainer_frame', b.x, b.y, b.w, b.h, 24, hot ? 1 : 0.92)) {
+      ctx.fillStyle = hot ? 'rgba(255,209,106,.10)' : 'rgba(255,255,255,.05)';
+      roundRect(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
+      ctx.strokeStyle = ELEMENT_COLORS[tr.element] || '#8ef2a0'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
+    }
     ctx.save(); ctx.translate(b.x + b.w / 2, b.y + 120); ctx.scale(1.5, 1.5);
     drawCreature(ctx, tr.element === 'Ember' ? 'embercub' : tr.element === 'Volt' ? 'voltip' : 'leaflet', 0, 0, t + i * 2, 'idle');
     ctx.restore();
@@ -345,9 +351,11 @@ function drawShop(ctx, run, t, mouse) {
     run._btns.push({ ...b, id: `buy:${i}` });
     const hot = inRect(mouse, b);
     ctx.globalAlpha = offer ? 1 : 0.25;
-    ctx.fillStyle = hot ? 'rgba(142,242,160,.14)' : 'rgba(255,255,255,.05)';
-    roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
-    ctx.strokeStyle = offer ? EL_COLOR(offer.species) : '#556'; ctx.lineWidth = 2; ctx.stroke();
+    if (!drawSlice(ctx, offer && offer.kind === 'item' ? 'shop_item' : 'shop_card', b.x, b.y, b.w, b.h, 16, 1)) {
+      ctx.fillStyle = hot ? 'rgba(142,242,160,.14)' : 'rgba(255,255,255,.05)';
+      roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
+      ctx.strokeStyle = offer ? EL_COLOR(offer.species) : '#556'; ctx.lineWidth = 2; ctx.stroke();
+    }
     if (offer) {
       ctx.save(); ctx.translate(b.x + 44, b.y + 46); ctx.scale(0.62, 0.62);
       drawCreature(ctx, offer.species, 0, 0, t + i, 'idle'); ctx.restore();
@@ -382,6 +390,7 @@ function drawShop(ctx, run, t, mouse) {
   if (run.mergeTrinketPending) { ctx.fillStyle = '#ffe9b1'; ctx.font = 'bold 14px monospace'; ctx.fillText('★ MERGE BONUS: pick a trinket below', X0, 452); }
 
   // trinket strip
+  drawSlice(ctx, 'trinket_bar', X0 - 6, 456, SW * 4 + 42, 44, 12, 0.9);
   ctx.fillStyle = '#9fb8a6'; ctx.font = '13px monospace';
   ctx.fillText('TRINKETS:', X0, 480);
   run.trinkets.forEach((tr, i) => {
