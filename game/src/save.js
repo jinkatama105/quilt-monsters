@@ -1,9 +1,9 @@
 // save.js — localStorage autosave that degrades gracefully when storage is
 // blocked (private mode, sandboxed iframes): every call is wrapped, nothing
 // outside the save format may throw.
-import { SPECIES } from './data.js?v=15';
-import { TeamManager } from './team.js?v=15';
-import { World } from './world.js?v=15';
+import { SPECIES } from './data.js?v=16';
+import { TeamManager } from './team.js?v=16';
+import { World } from './world.js?v=16';
 
 const KEY = 'verdant-s...e-v2';  // v2 = quilt roster; old v1 saves are ignored (fresh start)
 
@@ -23,6 +23,7 @@ export function saveGame(state) {
       world: state.world.serialize(),
       stats: { time: Math.round(state.stats.time), encounters: state.stats.encounters, wins: state.stats.wins },
       missions: state.missions,
+      road: state.road || null,
     };
     window.localStorage.setItem(KEY, JSON.stringify(data));
     return true;

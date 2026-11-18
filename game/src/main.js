@@ -1,27 +1,30 @@
 // main.js — bootstrap: canvas, loop, and the state machine that ties screens,
 // world, battles, HUD, audio and autosave together.
-import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=15';
-import { SPECIES, MISSIONS, matchup } from './data.js?v=15';
-import { Input } from './input.js?v=15';
-import { World } from './world.js?v=15';
-import { TeamManager, makeCreature } from './team.js?v=15';
-import { startBattle } from './battle.js?v=15';
-import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons } from './showdown.js?v=15';
-import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=15';
-import { wildSquad, bossSquad } from './data.js?v=15';
+import { VIEW_W, VIEW_H, TILE, PARTY_MAX, DEFEAT_PENALTY_ITEMS } from './config.js?v=16';
+import { SPECIES, MISSIONS, matchup } from './data.js?v=16';
+import { Input } from './input.js?v=16';
+import { World } from './world.js?v=16';
+import { TeamManager, makeCreature } from './team.js?v=16';
+import { startBattle } from './battle.js?v=16';
+import { startShowdown, drawShowdown, drawShowdownHud, showdownButtons } from './showdown.js?v=16';
+import { openDraft, draftButtons, doMerge, commitDraft, drawDraft } from './draft.js?v=16';
+import { wildSquad, bossSquad } from './data.js?v=16';
+import { makeRoad, drawRoad, roadFrontier, roadEnter, roadDone, roadInstant, nodeRect, roadMusic, zoneForCol } from './road.js?v=16';
 
 // Showdown mode (realtime auto-battler) is the default
 // battle engine. Append ?classic=1 to the URL (or set localStorage
 // vs-classic='1') to fall back to the old turn-based duel. See README.
 const SHOWDOWN = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 
-import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=15';
-import { drawFieldHud, panel } from './hud.js?v=15';
-import { PALETTE } from './config.js?v=15';
+import { drawField, drawBattle, Particles, battleAnchors } from './render.js?v=16';
+import { drawFieldHud, panel } from './hud.js?v=16';
+import { PALETTE } from './config.js?v=16';
+function roundRectC(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 // ?v busts stale browser copies (old screens.js served from disk cache, max-age 4h era)
-import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=15';
-import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=15';
-import { saveGame, loadGame, canSave } from './save.js?v=15';
+import { drawTitle, drawCodex, drawVictory, drawDefeat, titleButtonRect, battleButtons, battleAction, victoryScore } from './screens.js?v=16';
+import { playMusic, stopMusic, unlockAudio, setMuted, playSfx } from './audio.js?v=16';
+import { saveGame, loadGame, canSave } from './save.js?v=16';
+const ROAD = !/classic=1/.test(location.search) && localStorage.getItem('vs-classic') !== '1';
 
 const canvas = document.getElementById('game');
 canvas.width = VIEW_W; canvas.height = VIEW_H;
@@ -33,8 +36,10 @@ const params = new URLSearchParams(location.search);
 const debugMode = sessionStorage.getItem('vs-debug') || params.get('debug') || '';
 
 const state = {
-  mode: 'title',              // title | field | battle | codex | victory | defeat
+  mode: 'title',              // title | road | field | battle | codex | victory | defeat
   world: new World(),
+  road: null,                 // The Quilt Road node-map (run shell)
+  roadPending: null,          // node index that started the current battle
   team: startingTeam(),
   battle: null,
   submenu: null,
@@ -60,6 +65,13 @@ function startingTeam() {
 
 // ---------------------------------------------------------------- start paths
 function newGame() {
+  if (ROAD) {
+    state.road = makeRoad((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
+    state.mode = 'road';
+    playMusic('moss');
+    saveGame(state);
+    return;
+  }
   state.world = new World();
   state.team = startingTeam();
   state.stats = { time: 0, encounters: 0, wins: 0 };
@@ -75,6 +87,12 @@ function continueGame() {
   state.world = saved.world;
   state.stats = saved.stats;
   state.missions = saved.missions || {};
+  if (ROAD && saved.road) {
+    state.road = saved.road;
+    state.mode = 'road';
+    playMusic('moss');
+    return;
+  }
   state.mode = 'field';
   state.world.setNotice('Welcome back, ranger');
   playMusic(state.world.zoneId);
@@ -104,6 +122,9 @@ function debugStart() {
     playMusic('title');
   } else if (debugMode === 'field') {
     newGame();
+  } else if (debugMode === 'road') {
+    state.road = makeRoad(20261118);
+    state.mode = 'road'; playMusic('moss');
   }
 }
 
@@ -173,11 +194,12 @@ function update(dt) {
       break;
     }
     case 'draft': updateDraft(); break;
+    case 'road': updateRoad(); break;
     case 'field': updateField(dt); break;
     case 'battle': updateBattle(dt); break;
     case 'codex': {
       const back = input.hit('c') || input.hit('escape') || input.inRect(VIEW_W / 2 - 90, VIEW_H - 66, 180, 44);
-      if (back) { playSfx('menu'); state.mode = state.battle ? 'battle' : 'field'; }
+      if (back) { playSfx('menu'); state.mode = state.battle ? 'battle' : (state.road && ROAD ? 'road' : 'field'); }
       break;
     }
     case 'victory': {
@@ -251,7 +273,7 @@ function updateDraft() {
   const btns = draftButtons(d);
   // smaller buttons win over the full-card sel: hitbox they sit inside
   const clicked = input.mouse.clicked ? (btns.find((b) => !b.id.startsWith('sel:') && input.inRect(b.x, b.y, b.w, b.h)) || btns.find((b) => b.id.startsWith('sel:') && input.inRect(b.x, b.y, b.w, b.h))) : null;
-  if (!clicked && input.hit('escape')) { state.draft = null; state.pendingBattle = null; state.mode = 'field'; playSfx('menu'); return; }
+  if (!clicked && input.hit('escape')) { state.draft = null; state.pendingBattle = null; state.mode = state.road && ROAD ? 'road' : 'field'; playSfx('menu'); return; }
   if (!clicked) return;
   if (clicked.id.startsWith('sel:')) {
     const i = +clicked.id.slice(4);
@@ -272,8 +294,37 @@ function updateDraft() {
     const pb = state.pendingBattle; state.draft = null; state._draftDone = true;
     startEncounterBattle(pb.enemy, pb.kind, pb.mission);
   } else if (clicked.id === 'cancel') {
-    state.draft = null; state.pendingBattle = null; state.mode = 'field'; playSfx('menu');
+    state.draft = null; state.pendingBattle = null; state.mode = state.road && ROAD ? 'road' : 'field'; playSfx('menu');
   }
+}
+
+function updateRoad() {
+  const road = state.road;
+  if (!road) { newGame(); return; }
+  if (input.hit('c')) { playSfx('menu'); state.mode = 'codex'; return; }
+  const front = roadFrontier(road);
+  let chosen = -1;
+  for (let k = 0; k < 3 && k < front.length; k++) if (input.hit(String(k + 1))) chosen = front[k];
+  if (chosen < 0 && input.mouse.clicked) {
+    for (const i of front) { const r = nodeRect(i, road); if (input.inRect(r.x, r.y, r.w, r.h)) { chosen = i; break; } }
+  }
+  if (chosen < 0) return;
+  playSfx('menu');
+  const ev = roadEnter(road, chosen);
+  if (ev.kind === 'battle') {
+    state.roadPending = chosen;
+    startEncounterBattle(makeCreature(ev.enemyId, ev.level), ev.boss ? 'boss' : 'wild', ev.boss ? MISSIONS.find((m) => m.key === ev.enemyId) : null);
+    return;
+  }
+  const res = roadInstant(road, chosen, state.team);
+  if (res && res.kind === 'battle') { // mystery ambush
+    state.roadPending = chosen;
+    startEncounterBattle(makeCreature(res.enemyId, res.level), 'wild');
+    return;
+  }
+  if (res) { state.world.setNotice(res); playSfx('pickup'); }
+  if (road.spools <= 0) { state.lostNote = 'The last spool snapped'; state.mode = 'defeat'; stopMusic(); playSfx('defeat'); return; }
+  saveGame(state);
 }
 
 function fieldCamera() {
@@ -404,6 +455,25 @@ function updateShowdown(dt) {
   }
 }
 
+function roadBattleEnd(won) {
+  // called when a node battle resolves; returns true if it consumed the flow
+  if (!ROAD || !state.road || state.roadPending == null) return false;
+  const nodeIdx = state.roadPending; state.roadPending = null;
+  const finalWin = roadDone(state.road, nodeIdx, won);
+  if (state.road.spools <= 0) {
+    state.lostNote = 'The last spool snapped';
+    state.mode = 'defeat'; stopMusic(); playSfx('defeat'); saveGame(state);
+    return true;
+  }
+  if (finalWin) {
+    state.result = { time: state.stats.time, steps: state.road.nodes.filter((n) => n && n.done).length, captures: state.team.captureCount, wins: state.stats.wins };
+    state.mode = 'victory'; stopMusic(); playSfx('victory'); saveGame(state);
+    return true;
+  }
+  state.mode = 'road'; playMusic(roadMusic(state.road)); saveGame(state);
+  return true;
+}
+
 function finishShowdown(b) {
   state.battle = null;
   const won = b.winner === 'player';
@@ -417,6 +487,10 @@ function finishShowdown(b) {
     if (state.team.party.length < 6) state.team.addCreature(b.captured);
     else { state.team.box.push(b.captured); }
     worldMessage(`${b.captured.nickname} joins your cause!`);
+  }
+  // quilt road: a node battle resolved (win OR capture = patch stitched)
+  if (ROAD && state.roadPending != null && b.winner !== 'fled') {
+    if (roadBattleEnd(won || captured)) return;
   }
   if (won) {
     state.stats.wins += 1;
@@ -433,8 +507,10 @@ function finishShowdown(b) {
     }
     state.mode = 'field';
   } else if (b.winner === 'fled') {
+    if (ROAD && state.road) { state.mode = 'road'; saveGame(state); playMusic(roadMusic(state.road)); return; }
     state.mode = 'field';
   } else if (state.team.allFainted()) {
+    if (ROAD && state.roadPending != null) { if (roadBattleEnd(false)) return; } // node loss costs a spool, not a run
     state.lostNote = `${Math.min(DEFEAT_PENALTY_ITEMS, state.team.seedstones)} Seedstones scattered`;
     state.team.seedstones = Math.max(0, state.team.seedstones - DEFEAT_PENALTY_ITEMS);
     state.mode = 'defeat';
@@ -507,6 +583,15 @@ function settleMission(b, wasBoss, mission) {
 function worldMessage(text) { state.world.setNotice(text); }
 
 function respawnInMeadow() {
+  if (ROAD && state.road) {
+    state.road.spools = 3; // the quilt rewinds: fresh spools, same stitched patches
+    state.road.notions = Math.max(0, state.road.notions - 1);
+    state.team.healPartyHalf();
+    state.mode = 'road';
+    state.world.setNotice('You wake by the quilt frame, humbled');
+    playMusic(roadMusic(state.road)); saveGame(state);
+    return;
+  }
   state.world.zoneId = 'town';
   state.world.px = 7; state.world.py = 18;
   state.team.healPartyHalf();
@@ -548,6 +633,17 @@ function draw() {
       }
       break;
     case 'draft': drawField(ctx, state.world, state.t); drawDraft(ctx, state.draft, state.t); break;
+    case 'road': {
+      drawRoad(ctx, state, state.t, input.mouse);
+      const nt = state.world.notice;
+      if (nt && nt.t > 0) {
+        ctx.font = 'bold 17px Georgia'; const w = ctx.measureText(nt.text).width + 44;
+        ctx.fillStyle = 'rgba(15,40,25,.95)'; roundRectC(ctx, VIEW_W / 2 - w / 2, 178, w, 38, 9); ctx.fill();
+        ctx.strokeStyle = '#57d27a'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#e8f2e4'; ctx.textAlign = 'center'; ctx.fillText(nt.text, VIEW_W / 2, 203); ctx.textAlign = 'left';
+      }
+      break;
+    }
     case 'codex': drawCodex(ctx, state.team, state.t); break;
     case 'victory': drawVictory(ctx, state.result || { time: 0, steps: 0, captures: 0, wins: 0 }, state.t); break;
     case 'defeat': drawDefeat(ctx, state, state.t); break;
@@ -559,8 +655,8 @@ function drawBattleSceneHud(b) {
   hudDrawBattleHud(ctx, b, state, state.t, activeBattleButtons(b), hoveredButton(activeBattleButtons(b)));
 }
 
-import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=15';
-import { MOVES as MOVES_TABLE } from './data.js?v=15';
+import { drawBattleHud as hudDrawBattleHud } from './hud.js?v=16';
+import { MOVES as MOVES_TABLE } from './data.js?v=16';
 
 function activeBattleButtons(b) {
   if (state.submenu === 'moves') {

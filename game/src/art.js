@@ -2,8 +2,8 @@
 // creature portraits (one function per species), the field tileset, item icons,
 // particles. pos: 'idle' | 'defeat' | 'hurt'. All silhouettes are thick,
 // caricatural and share one family colour per element.
-import { ELEMENT_COLORS, TILE, T } from './config.js?v=15';
-export { T } from './config.js?v=15';
+import { ELEMENT_COLORS, TILE, T } from './config.js?v=16';
+export { T } from './config.js?v=16';
 
 function bodyGrad(ctx, cx, cy, r, color) {
   const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, r * 0.15, cx, cy, r * 1.25);
