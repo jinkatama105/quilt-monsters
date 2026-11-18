@@ -4,12 +4,12 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run7';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run7';
-import { mulberry32, rint } from './random.js?v=run7';
-import { panel, roundRect, drawSlice } from './hud.js?v=run7';
-import { drawCreature } from './art.js?v=run7';
-import { makeCreature } from './team.js?v=run7';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run8';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run8';
+import { mulberry32, rint } from './random.js?v=run8';
+import { panel, roundRect, drawSlice } from './hud.js?v=run8';
+import { drawCreature } from './art.js?v=run8';
+import { makeCreature } from './team.js?v=run8';
 
 // ------------------------------------------------------------------ data
 export const BUILTIN_TRAINERS = [
@@ -412,7 +412,12 @@ export function drawRun(ctx, run, t, mouse) {
   // coin icon is already drawn just left of it. Number only.
   ctx.fillText(`${run.coins}`, VIEW_W - 170, 44);
   ctx.font = 'bold 14px monospace'; ctx.fillStyle = '#3b2c17'; // v3: was 14px #6d5b3c, unreadable on sage
-  ctx.fillText(run.rank, 24, 68);
+  // v7: was y=68 — measured (DejaVu Sans Mono Bold 14px): the 'k' ascender
+  // tops at baseline-12, so at 68 its top was y=56 = the DAY tab's bottom
+  // edge (tab spans y 12..56, opaque to the edge). At 74 the 'k' top is 62
+  // (6px clear of the tab) and the rank's ink bottom (74) sits 7px above the
+  // shop subtitle's ink top (~81) — clear on both sides, every phase.
+  ctx.fillText(run.rank, 24, 74);
 
   if (run.phase === 'trainer') return drawTrainerSelect(ctx, run, t, mouse);
   if (run.phase === 'shop') return drawShop(ctx, run, t, mouse);

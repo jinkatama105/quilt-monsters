@@ -1,9 +1,9 @@
 // screens.js — the game's screens: title, codex (creature dex + type chart),
 // victory, defeat, and the battle action layout (buttons + click routing).
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js?v=run7';
-import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js?v=run7';
-import { drawCreature, drawSeedstoneIcon } from './art.js?v=run7';
-import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js?v=run7';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, PARTY_MAX } from './config.js?v=run8';
+import { SPECIES, SPECIES_LIST, MOVES, CHART, ELEMENTS, MISSIONS } from './data.js?v=run8';
+import { drawCreature, drawSeedstoneIcon } from './art.js?v=run8';
+import { panel, roundRect, drawHudButton, hpBar, drawSlice } from './hud.js?v=run8';
 
 function centerText(ctx, text, x, y, font, color) {
   ctx.font = font; ctx.fillStyle = color; ctx.textAlign = 'center';
@@ -111,18 +111,46 @@ export function battleAction(id, battle, team) {
 }
 
 // ---------------------------------------------------------------- codex
+// v7 pagination state (see drawCodex). Page persists across opens, dex-style.
+const CODEX_PAGE_ROWS = 4, CODEX_PAGE_SIZE = CODEX_PAGE_ROWS * 4;
+let codexPage = 0;
+export function codexPageCount() { return Math.ceil(SPECIES_LIST.length / CODEX_PAGE_SIZE); }
+export function codexGetPage() { return codexPage; }
+export function codexSetPage(p) { codexPage = Math.max(0, Math.min(codexPageCount() - 1, p)); }
+/** Prev/Next button rects — grid bottom is 628, BACK top is 734, nav sits between. */
+export function codexNavRects() {
+  return {
+    prev: { x: VIEW_W / 2 - 260, y: 662, w: 120, h: 44 },
+    next: { x: VIEW_W / 2 + 140, y: 662, w: 120, h: 44 },
+  };
+}
+
 export function drawCodex(ctx, team, t) {
   ctx.fillStyle = '#fdf3d0'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   panel(ctx, 30, 24, VIEW_W - 60, 68, 0.95);
   centerText(ctx, '◈ THE VERDANT CODEX ◈', VIEW_W / 2, 54, 'bold 30px monospace', '#3b2c17');
   centerText(ctx, `${team.dexCaught.size} bound · ${team.dexSeen.size} sighted — seen in battle, captured with Seedstones`, VIEW_W / 2, 80, '14px monospace', '#6d5b3c');
 
-  // v5: was cellW 262 — the chart wedge then got only 132px (cx 1108), so its
-  // grid columns ran off-canvas (last col at x 1312) and the footer lines
-  // centred at cx+150 clipped past the right edge. 236px cells free 236px
-  // for the chart (cx 1004): grid ends at cx+217, footers span cx+20..cx+216.
+  // v7 — chart geometry, re-derived from MEASURED widths with the real canvas
+  // font (DejaVu Sans Mono, Chromium's monospace): 'Verdant ▸' @11px = 59.6px,
+  // '×2'/'×½' @11px = 13.2px, 'Seedstones bind creatures' @12px = 180.5px.
+  // Root causes of the live clipping:
+  //  (a) the row label was `att.slice(0, 5)` — 'Verdant' was TRUNCATED to
+  //      'Verda' by code, not by the panel. Full names are used now.
+  //  (b) the other symptoms (rightmost column + footer 's' cut) were the
+  //      STALE cache: that browser kept serving Hermes's trainer-only
+  //      build (old 132px chart wedge, cx 1108, last col x 1312 off-canvas).
+  //      The ?v=run8 relabel breaks that cache identity.
+  //  Measured layout in the 236px panel (cx..cx+236): pad 16 | label 59.6 |
+  //  gap 10.4 | 5 cols @30px, first at cx+86, last text ends cx+219.2
+  //  (16.8px margin) | footer 180.5px centred at cx+118 (27.8px margins).
   const cols = 4, cellW = 236, cellH = 133, gx = 40, gy = 108;
-  SPECIES_LIST.forEach((id, i) => {
+  // v7 pagination: 42 species x 4 cols = 11 rows at 133px — the grid ran to
+  // y=1571, so rows 6+ fell off the 800px viewport and BACK (y 734) overlapped
+  // row 5 (y 640..761). Pages of 4 rows (16 species): 3 pages, grid bottom
+  // 628, BACK clear by 106px. Page persists across opens (dex-style).
+  const pageIds = SPECIES_LIST.slice(codexPage * CODEX_PAGE_SIZE, (codexPage + 1) * CODEX_PAGE_SIZE);
+  pageIds.forEach((id, i) => {
     const sp = SPECIES[id];
     const x = gx + (i % cols) * cellW, y = gy + Math.floor(i / cols) * cellH;
     const seen = team.dexSeen.has(id), caught = team.dexCaught.has(id);
@@ -163,11 +191,11 @@ export function drawCodex(ctx, team, t) {
   ctx.font = '11px monospace';
   ELEMENTS.forEach((att, r) => {
     ctx.fillStyle = ELEMENT_COLORS[att].main;
-    ctx.fillText(`${att.slice(0, 5)} ▸`, cx + 16, 172 + r * 34);
+    ctx.fillText(`${att} ▸`, cx + 16, 172 + r * 34);
     ELEMENTS.forEach((def, c) => {
       const mult = CHART[att][def];
       ctx.fillStyle = mult > 1 ? '#ff9d76' : mult < 1 ? '#6fae8a' : '#4d5d52';
-      ctx.fillText(mult > 1 ? '×2' : mult < 1 ? '×½' : '×1', cx + 84 + c * 30, 172 + r * 34);
+      ctx.fillText(mult > 1 ? '×2' : mult < 1 ? '×½' : '×1', cx + 86 + c * 30, 172 + r * 34);
     });
   });
   centerText(ctx, 'Ember▸Verdant▸Tide▸Ember', cx + 118, 366, '12px monospace', '#6d5b3c');
@@ -175,6 +203,19 @@ export function drawCodex(ctx, team, t) {
   centerText(ctx, 'Gloom▸Verdant', cx + 118, 406, '12px monospace', '#6d5b3c');
   drawSeedstoneIcon(ctx, cx + 118, 446, 22, t);
   centerText(ctx, 'Seedstones bind creatures', cx + 118, 476, '12px monospace', '#6d5b3c');
+
+  // v7: page navigation. Disabled end is dimmed (globalAlpha 0.45 over the
+  // button); clicks out of range are no-ops in main.js (codexSetPage clamps).
+  const nav = codexNavRects(), pages = codexPageCount();
+  ctx.save();
+  if (codexPage === 0) ctx.globalAlpha = 0.45;
+  drawHudButton(ctx, nav.prev.x, nav.prev.y, nav.prev.w, nav.prev.h, '‹ PREV', false);
+  ctx.restore();
+  ctx.save();
+  if (codexPage === pages - 1) ctx.globalAlpha = 0.45;
+  drawHudButton(ctx, nav.next.x, nav.next.y, nav.next.w, nav.next.h, 'NEXT ›', false);
+  ctx.restore();
+  centerText(ctx, `PAGE ${codexPage + 1} / ${pages}`, VIEW_W / 2, 690, 'bold 14px monospace', '#3b2c17');
 
   drawHudButton(ctx, VIEW_W / 2 - 90, VIEW_H - 66, 180, 44, '‹ BACK (C)', true);
 }
