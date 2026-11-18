@@ -338,14 +338,14 @@ export function drawShowdown(ctx, sd, t) {
   if (sd.zone && drawBattleBg(ctx, sd.zone, W, H)) { /* painted backdrop */ }
   else {
     const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#131a14'); bg.addColorStop(1, '#0b0f0d');
+    bg.addColorStop(0, '#dff3fb'); bg.addColorStop(1, '#fff3c4');
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   }
 
   if (sd.phase === 'vs') { drawVsCard(ctx, sd); return; }
 
   // arena floor band
-  ctx.fillStyle = 'rgba(0,0,0,.18)';
+  ctx.fillStyle = 'rgba(91,70,54,.12)';
   ctx.fillRect(0, 260, W, 340);
 
   const shakeX = sd.shake > 0 ? Math.sin(t * 70) * 4 * sd.shake : 0;
@@ -430,21 +430,21 @@ export function drawShowdown(ctx, sd, t) {
     ctx.strokeText(`Lv.${u.c.level}`, p.x, p.y - size * 0.62);
     ctx.fillText(`Lv.${u.c.level}`, p.x, p.y - size * 0.62);
     if (u.ability) {
-      ctx.fillStyle = '#9fd8c8';
+      ctx.fillStyle = '#2e9e8f';
       ctx.strokeText(ABILITIES[u.ability].name.toUpperCase(), p.x, p.y - size * 0.62 - 14);
       ctx.fillText(ABILITIES[u.ability].name.toUpperCase(), p.x, p.y - size * 0.62 - 14);
     }
     // per-unit hp bar
     const bw = size * 0.86;
     const hpf = u.maxHp ? u.hp / u.maxHp : 0;
-    ctx.fillStyle = 'rgba(6,10,6,.85)'; roundRect(ctx, p.x - bw / 2, p.y + size * 0.52, bw, 8, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(59,44,23,.85)'; roundRect(ctx, p.x - bw / 2, p.y + size * 0.52, bw, 8, 4); ctx.fill();
     if (hpf > 0) {
       ctx.fillStyle = hpf > 0.5 ? PALETTE.hpGood : hpf > 0.22 ? PALETTE.hpMid : PALETTE.hpBad;
       roundRect(ctx, p.x - bw / 2 + 1, p.y + size * 0.52 + 1, (bw - 2) * hpf, 6, 3); ctx.fill();
     }
     // charge bar
     if (u.alive) {
-      ctx.fillStyle = 'rgba(6,10,6,.85)'; roundRect(ctx, p.x - bw / 2, p.y + size * 0.52 + 12, bw, 6, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(59,44,23,.85)'; roundRect(ctx, p.x - bw / 2, p.y + size * 0.52 + 12, bw, 6, 3); ctx.fill();
       const el = ELEMENT_COLORS[u.sp.element];
       ctx.fillStyle = u.charge >= 1 ? '#ffffff' : el.main;
       roundRect(ctx, p.x - bw / 2 + 1, p.y + size * 0.52 + 13, (bw - 2) * Math.min(1, u.charge), 4, 2); ctx.fill();

@@ -353,7 +353,7 @@ export function restoreRun(data) {
 const EL_COLOR = (id) => ELEMENT_COLORS[SPECIES[id]?.element] || '#9fd8c8';
 const heartsRow = (ctx, x, y, run) => {
   for (let i = 0; i < 10; i++) {
-    ctx.font = '20px monospace'; ctx.fillStyle = i < run.hearts ? '#ff6a7a' : 'rgba(255,255,255,.14)';
+    ctx.font = '20px monospace'; ctx.fillStyle = i < run.hearts ? '#ff6a7a' : 'rgba(91,70,54,.20)';
     ctx.fillText('♥', x + i * 24, y);
   }
 };
@@ -381,9 +381,9 @@ export function drawRun(ctx, run, t, mouse) {
 
 function button(ctx, b, label, hot, sub) {
   if (!drawSlice(ctx, 'shop_button', b.x, b.y, b.w, Math.max(48, b.h), 18, hot ? 1 : 0.9)) {
-    ctx.fillStyle = hot ? 'rgba(255,209,106,.22)' : 'rgba(255,255,255,.06)';
+    ctx.fillStyle = hot ? 'rgba(255,201,60,.35)' : 'rgba(255,201,60,.10)';
     roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
-    ctx.strokeStyle = hot ? '#ffd26a' : '#6f8f7d'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
+    ctx.strokeStyle = hot ? '#d99a16' : '#5b4636'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
   }
   ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label, b.x + b.w / 2, b.y + (sub ? 26 : b.h / 2 + 6));
@@ -401,7 +401,7 @@ function drawTrainerSelect(ctx, run, t, mouse) {
     run._btns = run._btns || []; run._btns[i] = { ...b, id: `trainer:${tr.id}` };
     const hot = mouse && mouse.x >= b.x && mouse.x <= b.x + b.w && mouse.y >= b.y && mouse.y <= b.y + b.h;
     if (!drawSlice(ctx, 'trainer_frame', b.x, b.y, b.w, b.h, 24, hot ? 1 : 0.92)) {
-      ctx.fillStyle = hot ? 'rgba(255,209,106,.10)' : 'rgba(255,255,255,.05)';
+      ctx.fillStyle = hot ? 'rgba(255,201,60,.28)' : 'rgba(255,201,60,.10)';
       roundRect(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
       ctx.strokeStyle = ELEMENT_COLORS[tr.element] || '#8ef2a0'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
     }
@@ -439,7 +439,7 @@ function drawShop(ctx, run, t, mouse) {
     const hot = inRect(mouse, b);
     ctx.globalAlpha = offer ? 1 : 0.25;
     if (!drawSlice(ctx, offer && offer.kind === 'item' ? 'shop_item' : 'shop_card', b.x, b.y, b.w, b.h, 16, 1)) {
-      ctx.fillStyle = hot ? 'rgba(142,242,160,.14)' : 'rgba(255,255,255,.05)';
+      ctx.fillStyle = hot ? 'rgba(127,191,106,.25)' : 'rgba(255,201,60,.10)';
       roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
       ctx.strokeStyle = offer ? EL_COLOR(offer.species) : '#556'; ctx.lineWidth = 2; ctx.stroke();
     }
@@ -470,7 +470,7 @@ function drawShop(ctx, run, t, mouse) {
   run.board.forEach((c, i) => {
     const b = { x: X0 + i * (BW + 8), y: 280, w: BW, h: BH };
     run._btns.push({ ...b, id: `board:${i}` });
-    ctx.fillStyle = inRect(mouse, b) ? 'rgba(255,157,106,.12)' : 'rgba(255,255,255,.05)';
+    ctx.fillStyle = inRect(mouse, b) ? 'rgba(233,106,138,.18)' : 'rgba(255,201,60,.10)';
     roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
     ctx.strokeStyle = EL_COLOR(c.species); ctx.lineWidth = 2; ctx.stroke();
     ctx.save(); ctx.translate(b.x + 52, b.y + 60); ctx.scale(0.7, 0.7);
@@ -490,7 +490,7 @@ function drawShop(ctx, run, t, mouse) {
   ctx.fillText('TRINKETS:', X0, 480);
   run.trinkets.forEach((tr, i) => {
     const b = { x: X0 + 90 + i * 118, y: 462, w: 112, h: 30 };
-    ctx.fillStyle = 'rgba(255,209,106,.12)'; roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
+    ctx.fillStyle = 'rgba(255,201,60,.20)'; roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
     ctx.strokeStyle = '#c8a355'; ctx.stroke();
     ctx.fillStyle = '#3b2c17'; ctx.font = '11px monospace'; ctx.fillText(tr.name, b.x + 8, b.y + 19);
   });
@@ -517,7 +517,7 @@ function drawShop(ctx, run, t, mouse) {
   // pending merge trinket picker overlay
   if (run.mergeTrinketPending && run.mergeTrinkets) drawTrinketRow(ctx, run, mouse, run.mergeTrinkets, 'pick your merge bonus');
 
-  if (!run.board.length) { ctx.fillStyle = '#ff9d6a'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center'; ctx.fillText('buy at least one monster before battle', VIEW_W / 2, 630); ctx.textAlign = 'left'; }
+  if (!run.board.length) { ctx.fillStyle = '#e85d4a'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center'; ctx.fillText('buy at least one monster before battle', VIEW_W / 2, 630); ctx.textAlign = 'left'; }
 }
 
 function drawTrinketRow(ctx, run, mouse, list, label) {
@@ -528,7 +528,7 @@ function drawTrinketRow(ctx, run, mouse, list, label) {
     const b = { x: X0 + i * (W + 20), y: 660, w: W, h: 96 };
     run._btns.push({ ...b, id: `trinket:${i}` });
     const hot = inRect(mouse, b);
-    ctx.fillStyle = hot ? 'rgba(255,209,106,.16)' : 'rgba(255,255,255,.05)';
+    ctx.fillStyle = hot ? 'rgba(255,201,60,.30)' : 'rgba(255,201,60,.10)';
     roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
     ctx.strokeStyle = '#c8a355'; ctx.lineWidth = hot ? 2.5 : 1.5; ctx.stroke();
     ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 16px monospace'; ctx.fillText(tr.name, b.x + 14, b.y + 30);
@@ -555,7 +555,7 @@ function drawReward(ctx, run, mouse) {
   run._btns = [];
   const r = run.reward;
   ctx.textAlign = 'center';
-  ctx.font = 'bold 34px monospace'; ctx.fillStyle = r.gain > 0 ? '#8ef2a0' : '#ff9d6a';
+  ctx.font = 'bold 34px monospace'; ctx.fillStyle = r.gain > 0 ? '#2e9e4f' : '#e85d4a';
   ctx.fillText(r.trinkets.length ? 'VICTORY!' : 'DEFEAT…', VIEW_W / 2, 140);
   ctx.font = 'bold 20px monospace'; ctx.fillStyle = '#3b2c17';
   ctx.fillText(`+⬤ ${r.gain}`, VIEW_W / 2, 178);
@@ -575,9 +575,9 @@ function drawReward(ctx, run, mouse) {
 function drawChampion(ctx, run, mouse) {
   // FIX: same stale-button shadowing as drawReward — rebuild the hit list.
   run._btns = [];
-  ctx.textAlign = 'center'; ctx.font = 'bold 40px monospace'; ctx.fillStyle = '#ffe9b1';
+  ctx.textAlign = 'center'; ctx.font = 'bold 40px monospace'; ctx.fillStyle = '#d99a16';
   ctx.fillText('★ YOU ARE A QUILT CHAMPION ★', VIEW_W / 2, 260);
-  ctx.font = '18px monospace'; ctx.fillStyle = '#8ef2a0';
+  ctx.font = '18px monospace'; ctx.fillStyle = '#2e9e4f';
   ctx.fillText(`Day 10 cleared with ${run.hearts} hearts · rank: ${run.rank}`, VIEW_W / 2, 310);
   ctx.textAlign = 'left';
   const opts = [{ id: 'endless', label: 'EXTENDED (endless)', x: VIEW_W / 2 - 300 }, { id: 'menu', label: 'MAIN MENU', x: VIEW_W / 2 + 40 }];
@@ -591,7 +591,7 @@ function drawChampion(ctx, run, mouse) {
 function drawOver(ctx, run, mouse) {
   // FIX: same stale-button shadowing as drawReward — rebuild the hit list.
   run._btns = [];
-  ctx.textAlign = 'center'; ctx.font = 'bold 36px monospace'; ctx.fillStyle = '#ff9d6a';
+  ctx.textAlign = 'center'; ctx.font = 'bold 36px monospace'; ctx.fillStyle = '#e85d4a';
   ctx.fillText('RUN OVER', VIEW_W / 2, 250);
   ctx.font = '18px monospace'; ctx.fillStyle = '#9fd8c8';
   ctx.fillText(`survived to Day ${run.day} · best Day ${run.bestDay} · ${run.champion ? 'CHAMPION' : 'rank ' + run.rank}`, VIEW_W / 2, 300);

@@ -26,7 +26,7 @@ export function drawBattleBg(ctx, zoneId, w, h) {
   const entry = cache[id];
   if (!entry || !entry.ok) return false;
   ctx.drawImage(entry.img, 0, 0, w, h);
-  ctx.fillStyle = 'rgba(8,10,14,0.30)';
+  ctx.fillStyle = 'rgba(91,70,54,0.15)';
   ctx.fillRect(0, 0, w, h);
   return true;
 }

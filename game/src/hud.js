@@ -87,8 +87,8 @@ function hpColor(frac) { return frac > 0.5 ? PALETTE.hpGood : frac > 0.22 ? PALE
 
 export function hpBar(ctx, x, y, w, h, frac) {
   if (hpBarArt(ctx, x, y, w, h, frac)) return;
-  ctx.fillStyle = '#0a0f0a'; roundRect(ctx, x, y, w, h, h / 2); ctx.fill();
-  ctx.strokeStyle = '#31493a'; ctx.lineWidth = 2; roundRect(ctx, x, y, w, h, h / 2); ctx.stroke();
+  ctx.fillStyle = '#e7dcc0'; roundRect(ctx, x, y, w, h, h / 2); ctx.fill();
+  ctx.strokeStyle = '#5b4636'; ctx.lineWidth = 2; roundRect(ctx, x, y, w, h, h / 2); ctx.stroke();
   if (frac > 0.001) {
     ctx.fillStyle = hpColor(frac);
     roundRect(ctx, x + 2, y + 2, Math.max(h - 4, (w - 4) * frac), h - 4, (h - 4) / 2); ctx.fill();
@@ -152,7 +152,7 @@ export function drawFieldHud(ctx, state, t) {
     ctx.font = 'bold 26px monospace'; ctx.textAlign = 'center';
     const w = ctx.measureText(world.notice.text).width + 60;
     panel(ctx, VIEW_W / 2 - w / 2, 108, w, 56, 0.94);
-    ctx.fillStyle = PALETTE.paper;
+    ctx.fillStyle = INK;
     ctx.fillText(world.notice.text, VIEW_W / 2, 145);
     ctx.textAlign = 'left';
   }
@@ -164,12 +164,12 @@ export function drawHudButton(ctx, x, y, w, h, label, hot = false) {
   if (drawButtonArt(ctx, x, y, w, h, hot)) {
     // sprite drawn; skip procedural fill below
   } else {
-    ctx.fillStyle = hot ? '#2a4f38' : PALETTE.panel;
+    ctx.fillStyle = hot ? '#ffc93c' : PALETTE.panel;
     roundRect(ctx, x, y, w, h, 10); ctx.fill();
     ctx.strokeStyle = hot ? ELEMENT_COLORS.Verdant.main : PALETTE.panelEdge; ctx.lineWidth = 2.5;
     roundRect(ctx, x, y, w, h, 10); ctx.stroke();
   }
-  ctx.fillStyle = PALETTE.paper; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = INK; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label, x + w / 2, y + h / 2 + 5);
   ctx.restore();
 }
@@ -202,8 +202,8 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   ctx.fillText(`${battle.player.hp}/${battle.player.stats.hp}`, VIEW_W - 148, 537);
   ctx.textAlign = 'left';
   // xp bar
-  ctx.fillStyle = '#0a0f0a'; roundRect(ctx, VIEW_W - 462, 548, 268, 8, 4); ctx.fill();
-  ctx.fillStyle = '#6fa8ff'; roundRect(ctx, VIEW_W - 462, 548, Math.max(8, 268 * (battle.player.xp / battle.player.xpNext)), 8, 4); ctx.fill();
+  ctx.fillStyle = '#e7dcc0'; roundRect(ctx, VIEW_W - 462, 548, 268, 8, 4); ctx.fill();
+  ctx.fillStyle = '#7ec8e3'; roundRect(ctx, VIEW_W - 462, 548, Math.max(8, 268 * (battle.player.xp / battle.player.xpNext)), 8, 4); ctx.fill();
   ctx.font = '11px monospace'; ctx.fillStyle = INK_SUB; ctx.textAlign = 'left';
   ctx.fillText(`XP ${battle.player.xp}/${battle.player.xpNext}`, VIEW_W - 462, 572);
   ctx.textAlign = 'left';
@@ -213,7 +213,7 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
     const x = 60 + i * 96, y = VIEW_H - 46;
     ctx.fillStyle = c.hp > 0 ? ELEMENT_COLORS[SPECIES[c.species].element].main : '#3a3f3a';
     ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.fill();
-    ctx.strokeStyle = battle.player === c ? PALETTE.paper : 'rgba(0,0,0,.5)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = battle.player === c ? INK : 'rgba(0,0,0,.5)'; ctx.lineWidth = 3; ctx.stroke();
     ctx.fillStyle = PALETTE.paper; ctx.font = '11px monospace'; ctx.textAlign = 'center';
     ctx.fillText(`L${c.level}`, x, y + 4);
     ctx.textAlign = 'left';
@@ -223,7 +223,7 @@ export function drawBattleHud(ctx, battle, state, t, buttons, hovered) {
   for (const b of buttons) {
     drawHudButton(ctx, b.x, b.y, b.w, b.h, b.label, hovered === b.id);
     if (b.sub) {
-      ctx.fillStyle = '#9fb8a6'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+      ctx.fillStyle = INK_SUB; ctx.font = '11px monospace'; ctx.textAlign = 'center';
       ctx.fillText(b.sub, b.x + b.w / 2, b.y + b.h + 15); ctx.textAlign = 'left';
     }
   }

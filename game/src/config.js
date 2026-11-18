@@ -27,10 +27,10 @@ export const DEFEAT_PENALTY_ITEMS = 1; // lost seedstones when the party falls
 export const T = { GROUND: 0, GRASS: 1, ROCK: 2, WATER: 3, PATH: 4, FLOWER: 5, EXIT_E: 6, EXIT_W: 7, BOSS: 8, SPRING: 9, PILLAR: 10 };
 
 export const PALETTE = {
-  ink: '#0b0f0d',
-  paper: '#e8f2e4',
-  panel: '#152420',
-  panelEdge: '#3b5a47',
+  ink: '#241a12',
+  paper: '#fff6dc',
+  panel: '#fff6dc',
+  panelEdge: '#5b4636',
   shadow: 'rgba(0,0,0,.45)',
   hpGood: '#57d27a',
   hpMid: '#e6c84a',
@@ -51,7 +51,7 @@ export const ELEMENT_COLORS = {
 };
 
 export const ZONES = [
-  { id: 'moss', name: 'Moss Meadow', bg: '#18311f', accent: '#5fd36a', music: 0 },
-  { id: 'cliff', name: 'Cinder Bluff', bg: '#30160c', accent: '#ff8a3c', music: 1 },
-  { id: 'temple', name: 'Gloom Shrine', bg: '#1c1230', accent: '#a05fe0', music: 2 },
+  { id: 'moss', name: 'Moss Meadow', bg: '#cfe8b4', accent: '#5fd36a', music: 0 },
+  { id: 'cliff', name: 'Cinder Bluff', bg: '#ffd9a8', accent: '#ff8a3c', music: 1 },
+  { id: 'temple', name: 'Gloom Shrine', bg: '#e3d4f5', accent: '#a05fe0', music: 2 },
 ];
