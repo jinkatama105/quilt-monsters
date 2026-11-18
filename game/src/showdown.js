@@ -4,12 +4,12 @@
 // when it fills, the unit strikes the weakest enemy. Passive abilities proc.
 // The player steers only: pause / fast-forward, throw a Seedstone to capture,
 // or flee. Aggregate team HP bars sit top-centre, exactly like the reference.
-import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run5';
-import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run5';
-import { makeCreature, giveXp } from './team.js?v=run5';
-import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run5';
-import { battleBg, drawBattleBg } from './bg.js?v=run5';
-import { panel, roundRect } from './hud.js?v=run5';
+import { VIEW_W, VIEW_H, PALETTE, ELEMENT_COLORS, CAPTURE } from './config.js?v=run6';
+import { SPECIES, MOVES, matchup, ABILITIES, abilityForSpecies } from './data.js?v=run6';
+import { makeCreature, giveXp } from './team.js?v=run6';
+import { drawCreature, drawQuilt, loadQuiltImg } from './art.js?v=run6';
+import { battleBg, drawBattleBg } from './bg.js?v=run6';
+import { panel, roundRect } from './hud.js?v=run6';
 
 const R = () => Math.random();
 

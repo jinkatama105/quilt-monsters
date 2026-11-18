@@ -4,12 +4,12 @@
 //   hearts 0 = run over; win Day 10 = champion -> endless.
 // Data contract: game/data/trainers|shop|trinkets.json (Manus). Built-in tables
 // below are the fallback so the loop ships before the JSON lands.
-import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run5';
-import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run5';
-import { mulberry32, rint } from './random.js?v=run5';
-import { panel, roundRect, drawSlice } from './hud.js?v=run5';
-import { drawCreature } from './art.js?v=run5';
-import { makeCreature } from './team.js?v=run5';
+import { VIEW_W, VIEW_H, ELEMENT_COLORS } from './config.js?v=run6';
+import { SPECIES, SPECIES_LIST, abilityForSpecies } from './data.js?v=run6';
+import { mulberry32, rint } from './random.js?v=run6';
+import { panel, roundRect, drawSlice } from './hud.js?v=run6';
+import { drawCreature } from './art.js?v=run6';
+import { makeCreature } from './team.js?v=run6';
 
 // ------------------------------------------------------------------ data
 export const BUILTIN_TRAINERS = [
@@ -414,26 +414,41 @@ function button(ctx, b, label, hot, sub) {
 function drawTrainerSelect(ctx, run, t, mouse) {
   run._btns = []; // rebuild the hit list every frame (same fix as drawReward)
   ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('PICK YOUR TRAINER', VIEW_W / 2, 110); ctx.textAlign = 'left';
-  const W = 320, GAP = 36, X0 = (VIEW_W - (W * 3 + GAP * 2)) / 2, Y = 160;
+  ctx.fillText('PICK YOUR TRAINER', VIEW_W / 2, 96); ctx.textAlign = 'left';
+  // Grid layout: 3 cards per row, up to 2 rows. Was hard-coded to one row of
+  // 3 sized for BUILTIN_TRAINERS only — a 6-trainer JSON (REQQDATA1) fell off
+  // canvas (Manus #351). Rows now wrap and card size shrinks for 2-row grids.
+  const N = BUILTIN_TRAINERS.length;
+  const COLS = 3, rows = Math.max(1, Math.ceil(N / COLS));
+  const Y = rows > 1 ? 128 : 160;
+  const VGAP = rows > 1 ? 22 : 0;
+  // Height auto-fits the canvas: 330 for a single row, shrink to fit more rows.
+  const availH = VIEW_H - Y - 24;
+  const H = Math.min(330, Math.floor((availH - (rows - 1) * VGAP) / rows));
+  const W = rows > 1 ? 280 : 320, GAP = rows > 1 ? 24 : 36;
+  const X0 = (VIEW_W - (W * COLS + GAP * (COLS - 1))) / 2;
   BUILTIN_TRAINERS.forEach((tr, i) => {
-    const b = { x: X0 + i * (W + GAP), y: Y, w: W, h: 330 };
-    run._btns = run._btns || []; run._btns[i] = { ...b, id: `trainer:${tr.id}` };
+    const col = i % COLS, row = Math.floor(i / COLS);
+    const b = { x: X0 + col * (W + GAP), y: Y + row * (H + VGAP), w: W, h: H };
+    run._btns[i] = { ...b, id: `trainer:${tr.id}` };
     const hot = mouse && mouse.x >= b.x && mouse.x <= b.x + b.w && mouse.y >= b.y && mouse.y <= b.y + b.h;
     if (!drawSlice(ctx, 'trainer_frame', b.x, b.y, b.w, b.h, 24, hot ? 1 : 0.92)) {
       ctx.fillStyle = hot ? 'rgba(255,201,60,.28)' : 'rgba(255,201,60,.10)';
       roundRect(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
       ctx.strokeStyle = ELEMENT_COLORS[tr.element] || '#8ef2a0'; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
     }
-    // v3: was scale 1.5 at y+120 — the 240px-tall sprite reached the name line (y+220).
-    // 1.2x recentered at y+100 ends at ~y+200, clear of the name glyphs (~y+205).
-    ctx.save(); ctx.translate(b.x + b.w / 2, b.y + 100); ctx.scale(1.2, 1.2);
+    // Layout is proportional to card height H (auto-fits 1..3 rows):
+    // sprite sits in the top ~30% band, name at 67%, blurb below that.
+    // Single-row (H=330) lands on the v3-approved 1.2x / y+100 / y+220.
+    const sc = Math.max(0.75, Math.min(1.2, (H * 0.32424) / 80));
+    const heroY = Math.round(H * 0.30), nameY = Math.round(H * 0.67);
+    ctx.save(); ctx.translate(b.x + b.w / 2, b.y + heroY); ctx.scale(sc, sc);
     drawCreature(ctx, tr.element === 'Ember' ? 'embercub' : tr.element === 'Volt' ? 'voltip' : 'leaflet', 0, 0, t + i * 2, 'idle');
     ctx.restore();
-    ctx.textAlign = 'center'; ctx.fillStyle = '#3b2c17'; ctx.font = 'bold 22px monospace';
-    ctx.fillText(tr.name, b.x + b.w / 2, b.y + 220);
-    ctx.font = '13px monospace'; ctx.fillStyle = '#6d5b3c';
-    wrap(ctx, tr.text, b.x + b.w / 2, b.y + 246, b.w - 30, 17);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#3b2c17'; ctx.font = `bold ${rows > 1 ? 18 : 22}px monospace`;
+    ctx.fillText(tr.name, b.x + b.w / 2, b.y + nameY);
+    ctx.font = '12px monospace'; ctx.fillStyle = '#6d5b3c';
+    wrap(ctx, tr.text, b.x + b.w / 2, b.y + nameY + 22, b.w - 30, 15);
     ctx.textAlign = 'left';
   });
 }
